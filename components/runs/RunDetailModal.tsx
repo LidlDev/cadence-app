@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Heart, Zap, TrendingUp, Mountain, Thermometer, Activity } from 'lucide-react'
+import { X, Heart, Zap, TrendingUp, Mountain, Thermometer, Activity, Footprints, Gauge, Clock } from 'lucide-react'
 import { PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
 interface RunDetailModalProps {
@@ -73,7 +73,7 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
           ) : data ? (
             <div className="space-y-6">
               {/* Summary Stats */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <StatCard
                   icon={<Zap className="w-5 h-5" />}
                   label="Distance"
@@ -81,16 +81,22 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
                   color="text-primary-600"
                 />
                 <StatCard
-                  icon={<Heart className="w-5 h-5" />}
-                  label="Avg Heart Rate"
-                  value={data.run.average_hr ? `${data.run.average_hr} bpm` : 'N/A'}
-                  color="text-red-600"
+                  icon={<Clock className="w-5 h-5" />}
+                  label="Time"
+                  value={data.run.actual_time || 'N/A'}
+                  color="text-blue-600"
                 />
                 <StatCard
                   icon={<TrendingUp className="w-5 h-5" />}
                   label="Pace"
-                  value={data.run.actual_pace || data.run.target_pace || 'N/A'}
+                  value={data.run.actual_pace ? `${data.run.actual_pace}/km` : 'N/A'}
                   color="text-emerald-600"
+                />
+                <StatCard
+                  icon={<Heart className="w-5 h-5" />}
+                  label="Avg HR"
+                  value={data.run.average_hr ? `${data.run.average_hr} bpm` : 'N/A'}
+                  color="text-red-600"
                 />
                 <StatCard
                   icon={<Mountain className="w-5 h-5" />}
@@ -99,6 +105,44 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
                   color="text-amber-600"
                 />
               </div>
+
+              {/* Additional Stats Row */}
+              {(data.run.max_hr || data.run.average_cadence || data.run.calories) && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {data.run.max_hr && (
+                    <StatCard
+                      icon={<Heart className="w-5 h-5" />}
+                      label="Max HR"
+                      value={`${data.run.max_hr} bpm`}
+                      color="text-red-700"
+                    />
+                  )}
+                  {data.run.average_cadence && (
+                    <StatCard
+                      icon={<Footprints className="w-5 h-5" />}
+                      label="Avg Cadence"
+                      value={`${Math.round(data.run.average_cadence * 2)} spm`}
+                      color="text-purple-600"
+                    />
+                  )}
+                  {data.run.calories && (
+                    <StatCard
+                      icon={<Zap className="w-5 h-5" />}
+                      label="Calories"
+                      value={`${data.run.calories} kcal`}
+                      color="text-orange-600"
+                    />
+                  )}
+                  {data.run.rpe && (
+                    <StatCard
+                      icon={<Gauge className="w-5 h-5" />}
+                      label="RPE"
+                      value={`${data.run.rpe}/10`}
+                      color="text-indigo-600"
+                    />
+                  )}
+                </div>
+              )}
 
               {/* Heart Rate Zones */}
               {data.hrZones && (
@@ -267,6 +311,111 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
                 </div>
               )}
 
+              {/* Cadence Graph */}
+              {data.streams?.cadence && (
+                <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-6">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Footprints className="w-5 h-5 text-purple-600" />
+                    Cadence Over Time
+                  </h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={prepareCadenceData(data.streams)}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.1} />
+                      <XAxis
+                        dataKey="time"
+                        label={{ value: 'Time (min)', position: 'insideBottom', offset: -5 }}
+                        stroke="#64748b"
+                      />
+                      <YAxis
+                        label={{ value: 'Cadence (spm)', angle: -90, position: 'insideLeft' }}
+                        stroke="#64748b"
+                      />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }}
+                        labelStyle={{ color: '#f1f5f9' }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="cadence"
+                        stroke="#a855f7"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {/* Power Graph */}
+              {data.streams?.watts && (
+                <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-6">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Gauge className="w-5 h-5 text-yellow-600" />
+                    Power Over Time
+                  </h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={preparePowerData(data.streams)}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.1} />
+                      <XAxis
+                        dataKey="time"
+                        label={{ value: 'Time (min)', position: 'insideBottom', offset: -5 }}
+                        stroke="#64748b"
+                      />
+                      <YAxis
+                        label={{ value: 'Power (watts)', angle: -90, position: 'insideLeft' }}
+                        stroke="#64748b"
+                      />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }}
+                        labelStyle={{ color: '#f1f5f9' }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="power"
+                        stroke="#eab308"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {/* Temperature Graph */}
+              {data.streams?.temp && (
+                <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-6">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Thermometer className="w-5 h-5 text-blue-600" />
+                    Temperature Over Time
+                  </h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={prepareTempData(data.streams)}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.1} />
+                      <XAxis
+                        dataKey="time"
+                        label={{ value: 'Time (min)', position: 'insideBottom', offset: -5 }}
+                        stroke="#64748b"
+                      />
+                      <YAxis
+                        label={{ value: 'Temperature (°C)', angle: -90, position: 'insideLeft' }}
+                        stroke="#64748b"
+                      />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }}
+                        labelStyle={{ color: '#f1f5f9' }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="temp"
+                        stroke="#3b82f6"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
               {/* Additional Stats */}
               {data.run.suffer_score && (
                 <div className="bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 rounded-xl p-6 border border-red-200 dark:border-red-800">
@@ -343,6 +492,57 @@ function prepareHRData(streams: any) {
     data.push({
       time: (timeData[i] / 60).toFixed(1), // Convert to minutes
       hr: hrData[i],
+    })
+  }
+
+  return data
+}
+
+function prepareCadenceData(streams: any) {
+  if (!streams.cadence || !streams.time) return []
+
+  const data = []
+  const cadenceData = streams.cadence.data
+  const timeData = streams.time.data
+
+  for (let i = 0; i < cadenceData.length; i += 10) { // Sample every 10 points
+    data.push({
+      time: (timeData[i] / 60).toFixed(1), // Convert to minutes
+      cadence: cadenceData[i] * 2, // Strava returns steps per second, multiply by 2 for spm
+    })
+  }
+
+  return data
+}
+
+function preparePowerData(streams: any) {
+  if (!streams.watts || !streams.time) return []
+
+  const data = []
+  const powerData = streams.watts.data
+  const timeData = streams.time.data
+
+  for (let i = 0; i < powerData.length; i += 10) { // Sample every 10 points
+    data.push({
+      time: (timeData[i] / 60).toFixed(1), // Convert to minutes
+      power: powerData[i],
+    })
+  }
+
+  return data
+}
+
+function prepareTempData(streams: any) {
+  if (!streams.temp || !streams.time) return []
+
+  const data = []
+  const tempData = streams.temp.data
+  const timeData = streams.time.data
+
+  for (let i = 0; i < tempData.length; i += 10) { // Sample every 10 points
+    data.push({
+      time: (timeData[i] / 60).toFixed(1), // Convert to minutes
+      temp: tempData[i],
     })
   }
 

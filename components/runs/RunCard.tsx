@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { Run } from '@/lib/types/database'
 import { format } from 'date-fns'
-import { CheckCircle, Circle, Clock, MapPin, Zap, MessageSquare, Activity } from 'lucide-react'
+import { CheckCircle, Circle, Clock, MapPin, Zap, MessageSquare, Activity, Link } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import RunDetailModal from './RunDetailModal'
+import LinkStravaModal from './LinkStravaModal'
 import { updateBestPerformances } from '@/lib/utils/update-best-performances'
 
 interface RunCardProps {
@@ -17,6 +18,7 @@ export default function RunCard({ run, userId }: RunCardProps) {
   const [isLogging, setIsLogging] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(false)
+  const [showLinkModal, setShowLinkModal] = useState(false)
   const [formData, setFormData] = useState({
     actual_distance: run.actual_distance || run.planned_distance,
     actual_pace: run.actual_pace || '',
@@ -314,20 +316,38 @@ export default function RunCard({ run, userId }: RunCardProps) {
         <div className="mt-4 pt-4 border-t border-slate-300 dark:border-slate-600">
           <p className="text-sm text-slate-700 dark:text-slate-300">
             <strong>Completed:</strong> {run.actual_distance}km
-            {run.actual_pace && ` at ${run.actual_pace}`}
+            {run.actual_time && ` in ${run.actual_time}`}
+            {run.actual_pace && ` at ${run.actual_pace}/km`}
           </p>
           {run.comments && (
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
               {run.comments}
             </p>
           )}
-          <button
-            onClick={() => setShowDetailModal(true)}
-            className="mt-3 w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2"
-          >
-            <Activity className="w-4 h-4" />
-            View Details
-          </button>
+          {run.strava_activity_id && (
+            <div className="mt-2 flex items-center gap-2 text-xs text-[#FC4C02]">
+              <Activity className="w-3 h-3" />
+              <span>Linked to Strava</span>
+            </div>
+          )}
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => setShowDetailModal(true)}
+              className="flex-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+            >
+              <Activity className="w-4 h-4" />
+              View Details
+            </button>
+            {!run.strava_activity_id && (
+              <button
+                onClick={() => setShowLinkModal(true)}
+                className="px-4 py-2 bg-[#FC4C02] hover:bg-[#E34402] text-white rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+              >
+                <Link className="w-4 h-4" />
+                Link Strava
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -337,6 +357,14 @@ export default function RunCard({ run, userId }: RunCardProps) {
         onClose={() => setShowDetailModal(false)}
         runId={run.id}
         userId={userId}
+      />
+
+      {/* Link Strava Modal */}
+      <LinkStravaModal
+        runId={run.id}
+        isOpen={showLinkModal}
+        onClose={() => setShowLinkModal(false)}
+        onLinked={() => window.location.reload()}
       />
     </div>
   )
