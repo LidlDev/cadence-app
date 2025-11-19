@@ -17,7 +17,7 @@ export default function PersonalBestsCard({ personalBests }: PersonalBestsCardPr
 
   const handleEdit = (pb: PersonalBest) => {
     setEditingPB(pb.id)
-    setEditForm({ time: pb.time, pace: pb.pace })
+    setEditForm({ time: pb.time, pace: pb.pace || '' })
   }
 
   const handleSave = async (pbId: string) => {
@@ -26,7 +26,7 @@ export default function PersonalBestsCard({ personalBests }: PersonalBestsCardPr
       .from('personal_bests')
       .update({
         time: editForm.time,
-        pace: editForm.pace,
+        pace: editForm.pace || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', pbId)
