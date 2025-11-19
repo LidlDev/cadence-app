@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Primary Brand Color - #FF6F00 (Deep Orange) */
+  --color-primary-50: #fff3e0;
+  --color-primary-100: #ffe0b2;
+  --color-primary-200: #ffcc80;
+  --color-primary-300: #ffb74d;
+  --color-primary-400: #ffa726;
+  --color-primary-500: #ff9800;
+  --color-primary-600: #ff6f00;
+  --color-primary-700: #f57c00;
+  --color-primary-800: #ef6c00;
+  --color-primary-900: #e65100;
+  --color-primary-950: #bf360c;
+
+  /* Run Type Colors - Complementary to Orange */
+  /* Easy Run - Teal (Complementary to orange on color wheel) */
+  --color-easy-50: #f0fdfa;
+  --color-easy-100: #ccfbf1;
+  --color-easy-200: #99f6e4;
+  --color-easy-300: #5eead4;
+  --color-easy-400: #2dd4bf;
+  --color-easy-500: #14b8a6;
+  --color-easy-600: #0d9488;
+  --color-easy-700: #0f766e;
+  --color-easy-800: #115e59;
+  --color-easy-900: #134e4a;
+
+  /* Tempo Run - Amber (Analogous to orange) */
+  --color-tempo-50: #fffbeb;
+  --color-tempo-100: #fef3c7;
+  --color-tempo-200: #fde68a;
+  --color-tempo-300: #fcd34d;
+  --color-tempo-400: #fbbf24;
+  --color-tempo-500: #f59e0b;
+  --color-tempo-600: #d97706;
+  --color-tempo-700: #b45309;
+  --color-tempo-800: #92400e;
+  --color-tempo-900: #78350f;
+
+  /* Quality Run - Red (Analogous to orange) */
+  --color-quality-50: #fef2f2;
+  --color-quality-100: #fee2e2;
+  --color-quality-200: #fecaca;
+  --color-quality-300: #fca5a5;
+  --color-quality-400: #f87171;
+  --color-quality-500: #ef4444;
+  --color-quality-600: #dc2626;
+  --color-quality-700: #b91c1c;
+  --color-quality-800: #991b1b;
+  --color-quality-900: #7f1d1d;
+
+  /* Long Run - Blue (Triadic to orange) */
+  --color-long-50: #eff6ff;
+  --color-long-100: #dbeafe;
+  --color-long-200: #bfdbfe;
+  --color-long-300: #93c5fd;
+  --color-long-400: #60a5fa;
+  --color-long-500: #3b82f6;
+  --color-long-600: #2563eb;
+  --color-long-700: #1d4ed8;
+  --color-long-800: #1e40af;
+  --color-long-900: #1e3a8a;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+}
+
+body {
+  min-height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Light mode - default */
+html:not(.dark) body {
+  background: linear-gradient(to bottom right, rgb(248 250 252), rgb(226 232 240));
+  color: rgb(15 23 42);
+}
+
+/* Dark mode */
+html.dark body {
+  background: linear-gradient(to bottom right, rgb(15 23 42), rgb(30 41 59));
+  color: rgb(248 250 252);
+}
