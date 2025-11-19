@@ -57,8 +57,19 @@ async function fetchActivityStreams(
       return []
     }
 
-    const streams = await response.json()
-    return Object.values(streams)
+    const streamsData = await response.json()
+
+    // Strava returns an object keyed by stream type
+    // Convert to array and ensure each stream has a 'type' field
+    const streams: StravaStream[] = Object.entries(streamsData).map(([key, value]: [string, any]) => ({
+      type: key, // Use the key as the type
+      data: value.data,
+      series_type: value.series_type,
+      original_size: value.original_size,
+      resolution: value.resolution,
+    }))
+
+    return streams
   } catch (error) {
     console.error('Error fetching activity streams:', error)
     return []

@@ -183,7 +183,30 @@ export async function POST(request: NextRequest) {
     }
 
     // Streams and HR zones are already linked via syncStravaActivity
-    // No need to update them separately
+    // Now update the has_* boolean fields based on what streams exist
+    const { data: runStreams } = await supabase
+      .from('activity_streams')
+      .select('stream_type')
+      .eq('run_id', runId)
+
+    const streamTypes = new Set(runStreams?.map((s) => s.stream_type) || [])
+
+    await supabase
+      .from('runs')
+      .update({
+        has_heartrate: streamTypes.has('heartrate'),
+        has_cadence: streamTypes.has('cadence'),
+        has_power: streamTypes.has('watts'),
+        has_gps: streamTypes.has('latlng'),
+        has_time_stream: streamTypes.has('time'),
+        has_distance_stream: streamTypes.has('distance'),
+        has_latlng_stream: streamTypes.has('latlng'),
+        has_altitude_stream: streamTypes.has('altitude'),
+        has_velocity_stream: streamTypes.has('velocity_smooth'),
+        has_grade_stream: streamTypes.has('grade_smooth'),
+        has_temp_stream: streamTypes.has('temp'),
+      })
+      .eq('id', runId)
 
     // Update best performances
     const distance = parseFloat(distanceKm.toFixed(2))
