@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Run } from '@/lib/types/database'
 import RunCard from './RunCard'
 import AddRunModal from './AddRunModal'
+import EditRunModal from './EditRunModal'
 import FeaturedRunCard from './FeaturedRunCard'
 import CalendarView from './CalendarView'
 import BestPerformances from './BestPerformances'
@@ -20,6 +21,8 @@ export default function RunsClient({ runs, userId }: RunsClientProps) {
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'completed'>('upcoming')
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [selectedWeek, setSelectedWeek] = useState<number | 'all'>('all')
+  const [editingRun, setEditingRun] = useState<Run | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const today = startOfDay(new Date())
 
@@ -134,7 +137,10 @@ export default function RunsClient({ runs, userId }: RunsClientProps) {
 
         {/* Calendar View for Upcoming, List View for Completed/All */}
         {filter === 'upcoming' ? (
-          <CalendarView runs={filteredRuns} />
+          <CalendarView
+            runs={filteredRuns}
+            onRunClick={(run) => setEditingRun(run)}
+          />
         ) : (
           /* Runs Grid for Completed/All */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -159,6 +165,19 @@ export default function RunsClient({ runs, userId }: RunsClientProps) {
         onClose={() => setIsAddModalOpen(false)}
         userId={userId}
       />
+
+      {/* Edit Run Modal */}
+      {editingRun && (
+        <EditRunModal
+          run={editingRun}
+          isOpen={!!editingRun}
+          onClose={() => setEditingRun(null)}
+          onUpdate={() => {
+            setRefreshKey(prev => prev + 1)
+            window.location.reload() // Refresh the page to show updated data
+          }}
+        />
+      )}
     </div>
   )
 }
