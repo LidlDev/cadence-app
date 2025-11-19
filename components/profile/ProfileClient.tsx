@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { User, Activity, Link as LinkIcon, CheckCircle, XCircle } from 'lucide-react'
+import { User, Activity, Link as LinkIcon, CheckCircle, XCircle, RefreshCw } from 'lucide-react'
 import Image from 'next/image'
 
 interface ProfileClientProps {
@@ -13,15 +13,17 @@ interface ProfileClientProps {
 
 export default function ProfileClient({ user, profile, stravaConnected, stravaAthlete }: ProfileClientProps) {
   const [connecting, setConnecting] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshResult, setRefreshResult] = useState<any>(null)
 
   const handleStravaConnect = () => {
     setConnecting(true)
     const clientId = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID || '185798'
     const redirectUri = `${window.location.origin}/api/strava/callback`
     const scope = 'read,activity:read_all,profile:read_all'
-    
+
     const authUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`
-    
+
     window.location.href = authUrl
   }
 
@@ -31,13 +33,53 @@ export default function ProfileClient({ user, profile, stravaConnected, stravaAt
         const response = await fetch('/api/strava/disconnect', {
           method: 'POST',
         })
-        
+
         if (response.ok) {
           window.location.reload()
         }
       } catch (error) {
         console.error('Error disconnecting Strava:', error)
       }
+    }
+  }
+
+  const handleRefreshAllRuns = async () => {
+    if (!confirm('This will re-sync all your Strava-linked runs to populate missing data. This may take a few minutes. Continue?')) {
+      return
+    }
+
+    setRefreshing(true)
+    setRefreshResult(null)
+
+    try {
+      const response = await fetch('/api/strava/refresh-all-runs', {
+        method: 'POST',
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setRefreshResult({
+          success: true,
+          message: data.message,
+          total: data.total,
+          updated: data.updated,
+          failed: data.failed,
+        })
+      } else {
+        setRefreshResult({
+          success: false,
+          message: data.error || 'Failed to refresh runs',
+        })
+      }
+    } catch (error) {
+      console.error('Error refreshing runs:', error)
+      setRefreshResult({
+        success: false,
+        message: 'An error occurred while refreshing runs',
+      })
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -118,7 +160,45 @@ export default function ProfileClient({ user, profile, stravaConnected, stravaAt
                   </p>
                 )}
               </div>
-              <div className="flex gap-3">
+
+              {/* Refresh Result */}
+              {refreshResult && (
+                <div
+                  className={`rounded-lg p-4 ${
+                    refreshResult.success
+                      ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
+                      : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+                  }`}
+                >
+                  <p
+                    className={`font-medium ${
+                      refreshResult.success
+                        ? 'text-blue-800 dark:text-blue-200'
+                        : 'text-red-800 dark:text-red-200'
+                    }`}
+                  >
+                    {refreshResult.message}
+                  </p>
+                  {refreshResult.success && refreshResult.total > 0 && (
+                    <p
+                      className="text-blue-700 dark:text-blue-300 text-sm mt-1"
+                    >
+                      Updated {refreshResult.updated} of {refreshResult.total} runs
+                      {refreshResult.failed > 0 && ` (${refreshResult.failed} failed)`}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={handleRefreshAllRuns}
+                  disabled={refreshing}
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+                  {refreshing ? 'Refreshing...' : 'Refresh All Strava Data'}
+                </button>
                 <button
                   onClick={handleStravaDisconnect}
                   className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors"
@@ -134,6 +214,17 @@ export default function ProfileClient({ user, profile, stravaConnected, stravaAt
                   <LinkIcon className="w-5 h-5" />
                   View on Strava
                 </a>
+              </div>
+
+              {/* Info about refresh */}
+              <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                <h3 className="font-semibold text-amber-900 dark:text-amber-200 mb-2">
+                  🔄 Refresh Strava Data
+                </h3>
+                <p className="text-amber-800 dark:text-amber-300 text-sm">
+                  Use this to re-sync all your Strava-linked runs and populate missing detailed data (heart rate, elevation, cadence, etc.).
+                  This is useful if you linked runs before we added support for detailed analytics.
+                </p>
               </div>
             </div>
           ) : (

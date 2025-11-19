@@ -4,18 +4,15 @@ import { syncStravaActivity } from '@/lib/strava/activity-sync'
 import { updateBestPerformances } from '@/lib/utils/update-best-performances'
 
 /**
- * Link a specific Strava activity to a run
- * Fetches full activity data including streams and updates the run
+ * Refresh/re-sync a Strava-linked run to populate missing detailed data
+ * This is useful for runs that were linked before we added all the detailed fields
  */
 export async function POST(request: NextRequest) {
   try {
-    const { runId, stravaActivityId } = await request.json()
+    const { runId } = await request.json()
 
-    if (!runId || !stravaActivityId) {
-      return NextResponse.json(
-        { error: 'Missing runId or stravaActivityId' },
-        { status: 400 }
-      )
+    if (!runId) {
+      return NextResponse.json({ error: 'Missing runId' }, { status: 400 })
     }
 
     const supabase = await createClient()
@@ -29,6 +26,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Get the run
+    const { data: run, error: runError } = await supabase
+      .from('runs')
+      .select('*')
+      .eq('id', runId)
+      .eq('user_id', user.id)
+      .single()
+
+    if (runError || !run) {
+      return NextResponse.json({ error: 'Run not found' }, { status: 404 })
+    }
+
+    if (!run.strava_activity_id) {
+      return NextResponse.json(
+        { error: 'Run is not linked to a Strava activity' },
+        { status: 400 }
+      )
+    }
+
     // Get user's Strava tokens
     const { data: tokenData, error: tokenError } = await supabase
       .from('strava_tokens')
@@ -37,10 +53,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (tokenError || !tokenData) {
-      return NextResponse.json(
-        { error: 'Strava not connected' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Strava not connected' }, { status: 400 })
     }
 
     // Check if token needs refresh
@@ -62,10 +75,8 @@ export async function POST(request: NextRequest) {
       })
 
       if (!refreshResponse.ok) {
-        const errorText = await refreshResponse.text()
-        console.error('Token refresh failed:', errorText)
         return NextResponse.json(
-          { error: 'Failed to refresh Strava token. Please reconnect your Strava account.' },
+          { error: 'Failed to refresh Strava token' },
           { status: 401 }
         )
       }
@@ -85,21 +96,19 @@ export async function POST(request: NextRequest) {
         .eq('user_id', user.id)
     }
 
-    // Fetch detailed activity data
-    const activityResponse = await fetch(
-      `https://www.strava.com/api/v3/activities/${stravaActivityId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    )
+    // Delete old streams and HR zones for this run
+    await supabase.from('activity_streams').delete().eq('run_id', runId)
+    await supabase.from('activity_heart_rate_zones').delete().eq('run_id', runId)
 
-    if (!activityResponse.ok) {
-      return NextResponse.json({ error: 'Failed to fetch activity details' }, { status: 500 })
+    // Re-sync the activity
+    const result = await syncStravaActivity(run.strava_activity_id, user.id, accessToken)
+
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 500 })
     }
 
-    const activity = await activityResponse.json()
+    // Get the full activity data
+    const activity = result.activity
 
     // Calculate pace and format time
     const distanceKm = activity.distance / 1000
@@ -112,64 +121,38 @@ export async function POST(request: NextRequest) {
     const hours = Math.floor(timeSeconds / 3600)
     const minutes = Math.floor((timeSeconds % 3600) / 60)
     const secs = timeSeconds % 60
-    const duration = hours > 0
-      ? `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-      : `${minutes}:${secs.toString().padStart(2, '0')}`
-
-    // Sync the activity streams using the existing sync function
-    const result = await syncStravaActivity(stravaActivityId, user.id, accessToken)
-
-    if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 500 })
-    }
-
-    // Get the full activity data from the sync result
-    const fullActivity = result.activity || activity
+    const duration =
+      hours > 0
+        ? `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+        : `${minutes}:${secs.toString().padStart(2, '0')}`
 
     // Update the run with ALL the detailed Strava data
     const { error: updateError } = await supabase
       .from('runs')
       .update({
-        strava_activity_id: stravaActivityId,
         actual_distance: parseFloat(distanceKm.toFixed(2)),
         actual_time: duration,
         actual_pace: pace,
         completed: true,
         // Heart rate data
-        average_hr: fullActivity.average_heartrate || null,
-        max_hr: fullActivity.max_heartrate || null,
+        average_hr: activity.average_heartrate || null,
+        max_hr: activity.max_heartrate || null,
         // Elevation data
-        elevation_gain: fullActivity.total_elevation_gain || null,
-        elevation_loss: fullActivity.total_elevation_loss || null,
+        elevation_gain: activity.total_elevation_gain || null,
         // Cadence data
-        average_cadence: fullActivity.average_cadence || null,
-        max_cadence: fullActivity.max_cadence || null,
+        average_cadence: activity.average_cadence || null,
         // Power data
-        average_watts: fullActivity.average_watts || null,
-        max_watts: fullActivity.max_watts || null,
+        average_watts: activity.average_watts || null,
         // Calories
-        calories: fullActivity.calories || null,
-        // Temperature
-        average_temp: fullActivity.average_temp || null,
+        calories: activity.calories || null,
         // Suffer score
-        suffer_score: fullActivity.suffer_score || null,
+        suffer_score: activity.suffer_score || null,
         // Time data
-        moving_time: fullActivity.moving_time || null,
-        elapsed_time: fullActivity.elapsed_time || null,
-        // Achievement data
-        achievement_count: fullActivity.achievement_count || null,
-        pr_count: fullActivity.pr_count || null,
-        kudos_count: fullActivity.kudos_count || null,
-        comment_count: fullActivity.comment_count || null,
-        // Perceived exertion
-        perceived_exertion: fullActivity.perceived_exertion || null,
-        // Device
-        device_name: fullActivity.device_name || null,
-        // Gear
-        gear_id: fullActivity.gear_id || null,
+        moving_time: activity.moving_time || null,
+        elapsed_time: activity.elapsed_time || null,
         // Speed data
-        average_speed: fullActivity.average_speed || null,
-        max_speed: fullActivity.max_speed || null,
+        average_speed: activity.average_speed || null,
+        max_speed: activity.max_speed || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', runId)
@@ -187,7 +170,16 @@ export async function POST(request: NextRequest) {
       .eq('user_id', user.id)
       .is('run_id', null)
       .order('created_at', { ascending: false })
-      .limit(20) // Update the most recent streams (should be from this activity)
+      .limit(20)
+
+    // Update the HR zones to link to this run
+    await supabase
+      .from('activity_heart_rate_zones')
+      .update({ run_id: runId })
+      .eq('user_id', user.id)
+      .is('run_id', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
 
     // Update best performances
     const distance = parseFloat(distanceKm.toFixed(2))
@@ -203,11 +195,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Successfully linked Strava activity',
+      message: 'Successfully refreshed Strava data',
     })
   } catch (error) {
-    console.error('Error linking Strava activity:', error)
-    return NextResponse.json({ error: 'Failed to link activity' }, { status: 500 })
+    console.error('Error refreshing Strava data:', error)
+    return NextResponse.json({ error: 'Failed to refresh Strava data' }, { status: 500 })
   }
 }
 

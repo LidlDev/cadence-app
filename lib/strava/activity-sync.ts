@@ -16,6 +16,7 @@ interface StravaStream {
 interface ActivitySyncResult {
   success: boolean
   activityId?: number
+  activity?: any
   error?: string
 }
 
@@ -127,6 +128,16 @@ export async function syncStravaActivity(
       series_type: stream.series_type,
     }))
 
+    if (streamInserts.length > 0) {
+      const { error: streamError } = await supabase
+        .from('activity_streams')
+        .insert(streamInserts)
+
+      if (streamError) {
+        console.error('Error inserting activity streams:', streamError)
+      }
+    }
+
     // 4. Calculate and store heart rate zones if HR data available
     const hrStream = streams.find((s) => s.type === 'heartrate')
     let hrZones = null
@@ -143,12 +154,21 @@ export async function syncStravaActivity(
         average_hr: activity.average_heartrate,
         max_hr: activity.max_heartrate,
       }
+
+      const { error: hrError } = await supabase
+        .from('activity_heart_rate_zones')
+        .insert(hrZones)
+
+      if (hrError) {
+        console.error('Error inserting HR zones:', hrError)
+      }
     }
 
     // 5. Return activity data for further processing
     return {
       success: true,
       activityId: activity.id,
+      activity, // Return the full activity object
     }
   } catch (error) {
     console.error('Error syncing Strava activity:', error)
