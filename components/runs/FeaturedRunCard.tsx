@@ -102,7 +102,9 @@ export default function FeaturedRunCard({ run, onLogRun }: FeaturedRunCardProps)
               <MapPin className="w-5 h-5 drop-shadow" />
               <p className="text-sm font-medium drop-shadow">Distance</p>
             </div>
-            <p className="text-3xl font-bold drop-shadow-lg">{run.planned_distance} km</p>
+            <p className="text-3xl font-bold drop-shadow-lg">
+              {run.planned_distance ? `${run.planned_distance} km` : 'Varies'}
+            </p>
           </div>
 
           <div className="bg-white/20 dark:bg-white/10 backdrop-blur-sm rounded-xl p-4">

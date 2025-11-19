@@ -44,11 +44,14 @@ export default function LinkStravaModal({ runId, isOpen, onClose, onLinked }: Li
       if (data.success) {
         setActivities(data.activities)
       } else {
-        alert(data.error || 'Failed to fetch Strava activities')
+        console.error('Strava API error:', data)
+        const errorMsg = data.error || 'Failed to fetch Strava activities'
+        const details = data.details ? `\n\nDetails: ${data.details}` : ''
+        alert(`${errorMsg}${details}\n\nPlease check:\n1. Strava is connected in your profile\n2. Your Strava token hasn't expired\n3. You have activities in the last 30 days`)
       }
     } catch (error) {
       console.error('Error fetching activities:', error)
-      alert('Failed to fetch Strava activities')
+      alert('Failed to fetch Strava activities. Please check the console for details.')
     } finally {
       setLoading(false)
     }

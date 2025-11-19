@@ -11,9 +11,9 @@ ON runs(user_id, completed, scheduled_date DESC);
 CREATE INDEX IF NOT EXISTS idx_runs_strava_activity 
 ON runs(strava_activity_id) WHERE strava_activity_id IS NOT NULL;
 
--- Index for personal_bests table
-CREATE INDEX IF NOT EXISTS idx_personal_bests_user_distance 
-ON personal_bests(user_id, distance, rank);
+-- Index for personal_bests table (no rank column in this table)
+CREATE INDEX IF NOT EXISTS idx_personal_bests_user_distance
+ON personal_bests(user_id, distance);
 
 -- Index for activity_streams table
 CREATE INDEX IF NOT EXISTS idx_activity_streams_run 

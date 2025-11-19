@@ -33,10 +33,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if token needs refresh
-    const now = Math.floor(Date.now() / 1000)
+    const now = new Date()
+    const expiresAt = new Date(tokenData.expires_at)
     let accessToken = tokenData.access_token
 
-    if (tokenData.expires_at && tokenData.expires_at < now) {
+    if (expiresAt < now) {
       // Refresh the token
       const refreshResponse = await fetch('https://www.strava.com/oauth/token', {
         method: 'POST',
@@ -49,16 +50,26 @@ export async function GET(request: NextRequest) {
         }),
       })
 
+      if (!refreshResponse.ok) {
+        const errorText = await refreshResponse.text()
+        console.error('Token refresh failed:', errorText)
+        return NextResponse.json(
+          { error: 'Failed to refresh Strava token. Please reconnect your Strava account.' },
+          { status: 401 }
+        )
+      }
+
       const refreshData = await refreshResponse.json()
       accessToken = refreshData.access_token
 
       // Update tokens in database
+      const newExpiresAt = new Date(refreshData.expires_at * 1000).toISOString()
       await supabase
         .from('strava_tokens')
         .update({
           access_token: refreshData.access_token,
           refresh_token: refreshData.refresh_token,
-          expires_at: refreshData.expires_at,
+          expires_at: newExpiresAt,
         })
         .eq('user_id', user.id)
     }
@@ -75,9 +86,15 @@ export async function GET(request: NextRequest) {
     )
 
     if (!activitiesResponse.ok) {
+      const errorText = await activitiesResponse.text()
+      console.error('Strava API error:', activitiesResponse.status, errorText)
       return NextResponse.json(
-        { error: 'Failed to fetch Strava activities' },
-        { status: 500 }
+        {
+          error: 'Failed to fetch Strava activities',
+          details: errorText,
+          status: activitiesResponse.status
+        },
+        { status: activitiesResponse.status }
       )
     }
 

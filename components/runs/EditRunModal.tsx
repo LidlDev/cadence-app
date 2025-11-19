@@ -16,7 +16,7 @@ interface EditRunModalProps {
 export default function EditRunModal({ run, isOpen, onClose, onUpdate }: EditRunModalProps) {
   const [formData, setFormData] = useState({
     scheduled_date: run.scheduled_date,
-    planned_distance: run.planned_distance.toString(),
+    planned_distance: run.planned_distance?.toString() || '',
     run_type: run.run_type,
     notes: run.notes || '',
   })
@@ -25,7 +25,7 @@ export default function EditRunModal({ run, isOpen, onClose, onUpdate }: EditRun
   useEffect(() => {
     setFormData({
       scheduled_date: run.scheduled_date,
-      planned_distance: run.planned_distance.toString(),
+      planned_distance: run.planned_distance?.toString() || '',
       run_type: run.run_type,
       notes: run.notes || '',
     })
@@ -39,11 +39,19 @@ export default function EditRunModal({ run, isOpen, onClose, onUpdate }: EditRun
 
     try {
       const supabase = createClient()
+
+      // Parse distance - handle numeric and non-numeric values
+      const parsedDistance = formData.planned_distance
+        ? (isNaN(parseFloat(formData.planned_distance))
+            ? null
+            : parseFloat(formData.planned_distance))
+        : null
+
       const { error } = await supabase
         .from('runs')
         .update({
           scheduled_date: formData.scheduled_date,
-          planned_distance: parseFloat(formData.planned_distance),
+          planned_distance: parsedDistance,
           run_type: formData.run_type,
           notes: formData.notes || null,
         })

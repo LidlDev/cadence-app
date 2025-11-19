@@ -116,7 +116,9 @@ export default function CalendarView({ runs, onRunClick }: CalendarViewProps) {
                     } ${run.completed ? 'opacity-60' : ''} hover:opacity-80 transition-opacity`}
                   >
                     <div className="truncate">{run.run_type.replace(' Run', '')}</div>
-                    <div className="truncate text-xs opacity-75">{run.planned_distance}km</div>
+                    <div className="truncate text-xs opacity-75">
+                      {run.planned_distance ? `${run.planned_distance}km` : 'Varies'}
+                    </div>
                   </button>
                 ))}
               </div>

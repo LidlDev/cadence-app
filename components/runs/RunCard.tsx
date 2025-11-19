@@ -20,7 +20,7 @@ export default function RunCard({ run, userId }: RunCardProps) {
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [showLinkModal, setShowLinkModal] = useState(false)
   const [formData, setFormData] = useState({
-    actual_distance: run.actual_distance || run.planned_distance,
+    actual_distance: run.actual_distance || run.planned_distance || '',
     actual_pace: run.actual_pace || '',
     actual_time: run.actual_time || '',
     rpe: run.rpe || 5,
@@ -31,11 +31,20 @@ export default function RunCard({ run, userId }: RunCardProps) {
     const supabase = createClient()
 
     // Update the run
+    // Parse distance to number (handle both string and number types)
+    const actualDistance = typeof formData.actual_distance === 'string'
+      ? parseFloat(formData.actual_distance)
+      : formData.actual_distance
+
     const { error } = await supabase
       .from('runs')
       .update({
         completed: true,
-        ...formData,
+        actual_distance: actualDistance,
+        actual_pace: formData.actual_pace,
+        actual_time: formData.actual_time,
+        rpe: formData.rpe,
+        comments: formData.comments,
         updated_at: new Date().toISOString(),
       })
       .eq('id', run.id)
@@ -46,7 +55,7 @@ export default function RunCard({ run, userId }: RunCardProps) {
     }
 
     // Check if this is a new PB
-    await checkAndUpdatePB(supabase, formData.actual_distance, formData.actual_time, formData.actual_pace)
+    await checkAndUpdatePB(supabase, actualDistance, formData.actual_time, formData.actual_pace)
 
     // Update best performances
     if (formData.actual_time && formData.actual_pace) {
@@ -54,7 +63,7 @@ export default function RunCard({ run, userId }: RunCardProps) {
         supabase,
         userId,
         run.id,
-        formData.actual_distance,
+        actualDistance,
         formData.actual_time,
         formData.actual_pace,
         run.scheduled_date
@@ -205,7 +214,7 @@ export default function RunCard({ run, userId }: RunCardProps) {
         <div className="flex items-center gap-2">
           <MapPin className="w-4 h-4 text-slate-600 dark:text-slate-400" />
           <span className="text-sm text-slate-700 dark:text-slate-300">
-            <strong>{run.planned_distance}km</strong>
+            <strong>{run.planned_distance ? `${run.planned_distance}km` : 'Varies'}</strong>
             {run.session_type && ` • ${run.session_type}`}
           </span>
         </div>
