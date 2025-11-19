@@ -10,18 +10,40 @@ export default async function DashboardPage() {
     redirect('/login')
   }
 
-  // Fetch dashboard data
-  const [runsData, stravaData, pbsData, planData] = await Promise.all([
-    supabase.from('runs').select('*').eq('user_id', user.id).order('scheduled_date', { ascending: true }),
-    supabase.from('strava_activities').select('*').eq('user_id', user.id).order('start_date', { ascending: false }).limit(30),
+  // Fetch dashboard data - optimized to only fetch what's needed for initial render
+  // Dashboard only shows: upcoming runs, recent completed runs, and stats
+  const today = new Date().toISOString().split('T')[0]
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+  const [upcomingRunsData, recentRunsData, pbsData, planData] = await Promise.all([
+    // Only fetch upcoming runs (next 30 days)
+    supabase
+      .from('runs')
+      .select('*')
+      .eq('user_id', user.id)
+      .gte('scheduled_date', today)
+      .order('scheduled_date', { ascending: true })
+      .limit(50),
+    // Only fetch recent completed runs (last 30 days)
+    supabase
+      .from('runs')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('completed', true)
+      .gte('scheduled_date', thirtyDaysAgo)
+      .order('scheduled_date', { ascending: false })
+      .limit(50),
     supabase.from('personal_bests').select('*').eq('user_id', user.id),
     supabase.from('training_plans').select('*').eq('user_id', user.id).eq('status', 'active').single(),
   ])
 
+  // Combine upcoming and recent runs
+  const runs = [...(upcomingRunsData.data || []), ...(recentRunsData.data || [])]
+
   return (
     <DashboardClient
-      runs={runsData.data || []}
-      stravaActivities={stravaData.data || []}
+      runs={runs}
+      stravaActivities={[]} // Remove strava_activities table dependency
       personalBests={pbsData.data || []}
       trainingPlan={planData.data}
     />

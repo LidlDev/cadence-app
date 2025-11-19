@@ -27,7 +27,8 @@ export default function LoginPage() {
       setError(error.message)
       setLoading(false)
     } else {
-      router.push('/dashboard')
+      // Force a full page reload to ensure middleware picks up the new session
+      window.location.href = '/dashboard'
     }
   }
 
