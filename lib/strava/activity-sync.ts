@@ -90,7 +90,8 @@ function calculateHRZones(hrData: number[], maxHR: number) {
 export async function syncStravaActivity(
   activityId: number,
   userId: string,
-  accessToken: string
+  accessToken: string,
+  runId?: string // Optional run ID to link streams immediately
 ): Promise<ActivitySyncResult> {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -117,18 +118,18 @@ export async function syncStravaActivity(
     // 2. Fetch all activity streams
     const streams = await fetchActivityStreams(activityId, accessToken)
 
-    // 3. Store activity streams in database
-    const streamInserts = streams.map((stream) => ({
-      user_id: userId,
-      run_id: null, // Will be updated when linked to a run
-      stream_type: stream.type,
-      data: stream.data,
-      original_size: stream.original_size,
-      resolution: stream.resolution,
-      series_type: stream.series_type,
-    }))
+    // 3. Store activity streams in database (only if runId is provided)
+    if (runId && streams.length > 0) {
+      const streamInserts = streams.map((stream) => ({
+        user_id: userId,
+        run_id: runId,
+        stream_type: stream.type,
+        data: stream.data,
+        original_size: stream.original_size,
+        resolution: stream.resolution,
+        series_type: stream.series_type,
+      }))
 
-    if (streamInserts.length > 0) {
       const { error: streamError } = await supabase
         .from('activity_streams')
         .insert(streamInserts)
@@ -138,21 +139,20 @@ export async function syncStravaActivity(
       }
     }
 
-    // 4. Calculate and store heart rate zones if HR data available
+    // 4. Calculate and store heart rate zones if HR data available (only if runId is provided)
     const hrStream = streams.find((s) => s.type === 'heartrate')
-    let hrZones = null
-    if (hrStream && activity.max_heartrate) {
+    if (runId && hrStream && activity.max_heartrate) {
       const zones = calculateHRZones(hrStream.data as number[], activity.max_heartrate)
-      hrZones = {
+      const hrZones = {
         user_id: userId,
-        run_id: null, // Will be updated when linked to a run
+        run_id: runId,
         zone_1_time: zones.zone_1,
         zone_2_time: zones.zone_2,
         zone_3_time: zones.zone_3,
         zone_4_time: zones.zone_4,
         zone_5_time: zones.zone_5,
-        average_hr: activity.average_heartrate,
-        max_hr: activity.max_heartrate,
+        average_hr: activity.average_heartrate ? Math.round(activity.average_heartrate) : null,
+        max_hr: activity.max_heartrate ? Math.round(activity.max_heartrate) : null,
       }
 
       const { error: hrError } = await supabase

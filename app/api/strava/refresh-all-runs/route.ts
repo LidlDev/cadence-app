@@ -105,11 +105,12 @@ export async function POST(request: NextRequest) {
         await supabase.from('activity_streams').delete().eq('run_id', run.id)
         await supabase.from('activity_heart_rate_zones').delete().eq('run_id', run.id)
 
-        // Re-sync the activity
+        // Re-sync the activity with runId to insert streams immediately
         const result = await syncStravaActivity(
           run.strava_activity_id,
           user.id,
-          accessToken
+          accessToken,
+          run.id // Pass run ID so streams are linked immediately
         )
 
         if (!result.success) {
@@ -139,6 +140,7 @@ export async function POST(request: NextRequest) {
             : `${minutes}:${secs.toString().padStart(2, '0')}`
 
         // Update the run with ALL the detailed Strava data
+        // Convert all numeric values to appropriate types
         const { error: updateError } = await supabase
           .from('runs')
           .update({
@@ -146,17 +148,25 @@ export async function POST(request: NextRequest) {
             actual_time: duration,
             actual_pace: pace,
             completed: true,
-            average_hr: activity.average_heartrate || null,
-            max_hr: activity.max_heartrate || null,
-            elevation_gain: activity.total_elevation_gain || null,
-            average_cadence: activity.average_cadence || null,
-            average_watts: activity.average_watts || null,
-            calories: activity.calories || null,
-            suffer_score: activity.suffer_score || null,
-            moving_time: activity.moving_time || null,
-            elapsed_time: activity.elapsed_time || null,
-            average_speed: activity.average_speed || null,
-            max_speed: activity.max_speed || null,
+            // Heart rate - convert to integers
+            average_hr: activity.average_heartrate ? Math.round(activity.average_heartrate) : null,
+            max_hr: activity.max_heartrate ? Math.round(activity.max_heartrate) : null,
+            // Elevation
+            elevation_gain: activity.total_elevation_gain ? parseFloat(activity.total_elevation_gain.toFixed(1)) : null,
+            // Cadence
+            average_cadence: activity.average_cadence ? parseFloat(activity.average_cadence.toFixed(1)) : null,
+            // Power
+            average_watts: activity.average_watts ? parseFloat(activity.average_watts.toFixed(1)) : null,
+            // Calories - convert to integer
+            calories: activity.calories ? Math.round(activity.calories) : null,
+            // Suffer score - convert to integer
+            suffer_score: activity.suffer_score ? Math.round(activity.suffer_score) : null,
+            // Time - convert to integers
+            moving_time: activity.moving_time ? Math.round(activity.moving_time) : null,
+            elapsed_time: activity.elapsed_time ? Math.round(activity.elapsed_time) : null,
+            // Speed
+            average_speed: activity.average_speed ? parseFloat(activity.average_speed.toFixed(2)) : null,
+            max_speed: activity.max_speed ? parseFloat(activity.max_speed.toFixed(2)) : null,
             updated_at: new Date().toISOString(),
           })
           .eq('id', run.id)
@@ -169,23 +179,8 @@ export async function POST(request: NextRequest) {
           continue
         }
 
-        // Link streams to this run
-        await supabase
-          .from('activity_streams')
-          .update({ run_id: run.id })
-          .eq('user_id', user.id)
-          .is('run_id', null)
-          .order('created_at', { ascending: false })
-          .limit(20)
-
-        // Link HR zones to this run
-        await supabase
-          .from('activity_heart_rate_zones')
-          .update({ run_id: run.id })
-          .eq('user_id', user.id)
-          .is('run_id', null)
-          .order('created_at', { ascending: false })
-          .limit(1)
+        // Streams and HR zones are already linked via syncStravaActivity
+        // No need to update them separately
 
         successCount++
         console.log(`Successfully refreshed run ${run.id}`)

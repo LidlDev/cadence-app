@@ -100,8 +100,8 @@ export async function POST(request: NextRequest) {
     await supabase.from('activity_streams').delete().eq('run_id', runId)
     await supabase.from('activity_heart_rate_zones').delete().eq('run_id', runId)
 
-    // Re-sync the activity
-    const result = await syncStravaActivity(run.strava_activity_id, user.id, accessToken)
+    // Re-sync the activity with runId to insert streams immediately
+    const result = await syncStravaActivity(run.strava_activity_id, user.id, accessToken, runId)
 
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 500 })
@@ -127,6 +127,7 @@ export async function POST(request: NextRequest) {
         : `${minutes}:${secs.toString().padStart(2, '0')}`
 
     // Update the run with ALL the detailed Strava data
+    // Convert all numeric values to appropriate types
     const { error: updateError } = await supabase
       .from('runs')
       .update({
@@ -134,25 +135,25 @@ export async function POST(request: NextRequest) {
         actual_time: duration,
         actual_pace: pace,
         completed: true,
-        // Heart rate data
-        average_hr: activity.average_heartrate || null,
-        max_hr: activity.max_heartrate || null,
-        // Elevation data
-        elevation_gain: activity.total_elevation_gain || null,
-        // Cadence data
-        average_cadence: activity.average_cadence || null,
-        // Power data
-        average_watts: activity.average_watts || null,
-        // Calories
-        calories: activity.calories || null,
-        // Suffer score
-        suffer_score: activity.suffer_score || null,
-        // Time data
-        moving_time: activity.moving_time || null,
-        elapsed_time: activity.elapsed_time || null,
-        // Speed data
-        average_speed: activity.average_speed || null,
-        max_speed: activity.max_speed || null,
+        // Heart rate - convert to integers
+        average_hr: activity.average_heartrate ? Math.round(activity.average_heartrate) : null,
+        max_hr: activity.max_heartrate ? Math.round(activity.max_heartrate) : null,
+        // Elevation
+        elevation_gain: activity.total_elevation_gain ? parseFloat(activity.total_elevation_gain.toFixed(1)) : null,
+        // Cadence
+        average_cadence: activity.average_cadence ? parseFloat(activity.average_cadence.toFixed(1)) : null,
+        // Power
+        average_watts: activity.average_watts ? parseFloat(activity.average_watts.toFixed(1)) : null,
+        // Calories - convert to integer
+        calories: activity.calories ? Math.round(activity.calories) : null,
+        // Suffer score - convert to integer
+        suffer_score: activity.suffer_score ? Math.round(activity.suffer_score) : null,
+        // Time - convert to integers
+        moving_time: activity.moving_time ? Math.round(activity.moving_time) : null,
+        elapsed_time: activity.elapsed_time ? Math.round(activity.elapsed_time) : null,
+        // Speed
+        average_speed: activity.average_speed ? parseFloat(activity.average_speed.toFixed(2)) : null,
+        max_speed: activity.max_speed ? parseFloat(activity.max_speed.toFixed(2)) : null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', runId)
@@ -163,23 +164,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to update run' }, { status: 500 })
     }
 
-    // Update the activity_streams to link to this run
-    await supabase
-      .from('activity_streams')
-      .update({ run_id: runId })
-      .eq('user_id', user.id)
-      .is('run_id', null)
-      .order('created_at', { ascending: false })
-      .limit(20)
-
-    // Update the HR zones to link to this run
-    await supabase
-      .from('activity_heart_rate_zones')
-      .update({ run_id: runId })
-      .eq('user_id', user.id)
-      .is('run_id', null)
-      .order('created_at', { ascending: false })
-      .limit(1)
+    // Streams and HR zones are already linked via syncStravaActivity
+    // No need to update them separately
 
     // Update best performances
     const distance = parseFloat(distanceKm.toFixed(2))

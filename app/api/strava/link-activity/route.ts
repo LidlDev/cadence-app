@@ -117,7 +117,8 @@ export async function POST(request: NextRequest) {
       : `${minutes}:${secs.toString().padStart(2, '0')}`
 
     // Sync the activity streams using the existing sync function
-    const result = await syncStravaActivity(stravaActivityId, user.id, accessToken)
+    // Pass runId so streams are linked immediately
+    const result = await syncStravaActivity(stravaActivityId, user.id, accessToken, runId)
 
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 500 })
@@ -127,6 +128,7 @@ export async function POST(request: NextRequest) {
     const fullActivity = result.activity || activity
 
     // Update the run with ALL the detailed Strava data
+    // Convert all numeric values to appropriate types
     const { error: updateError } = await supabase
       .from('runs')
       .update({
@@ -135,41 +137,41 @@ export async function POST(request: NextRequest) {
         actual_time: duration,
         actual_pace: pace,
         completed: true,
-        // Heart rate data
-        average_hr: fullActivity.average_heartrate || null,
-        max_hr: fullActivity.max_heartrate || null,
-        // Elevation data
-        elevation_gain: fullActivity.total_elevation_gain || null,
-        elevation_loss: fullActivity.total_elevation_loss || null,
-        // Cadence data
-        average_cadence: fullActivity.average_cadence || null,
-        max_cadence: fullActivity.max_cadence || null,
-        // Power data
-        average_watts: fullActivity.average_watts || null,
-        max_watts: fullActivity.max_watts || null,
-        // Calories
-        calories: fullActivity.calories || null,
+        // Heart rate - convert to integers
+        average_hr: fullActivity.average_heartrate ? Math.round(fullActivity.average_heartrate) : null,
+        max_hr: fullActivity.max_heartrate ? Math.round(fullActivity.max_heartrate) : null,
+        // Elevation
+        elevation_gain: fullActivity.total_elevation_gain ? parseFloat(fullActivity.total_elevation_gain.toFixed(1)) : null,
+        elevation_loss: fullActivity.total_elevation_loss ? parseFloat(fullActivity.total_elevation_loss.toFixed(1)) : null,
+        // Cadence
+        average_cadence: fullActivity.average_cadence ? parseFloat(fullActivity.average_cadence.toFixed(1)) : null,
+        max_cadence: fullActivity.max_cadence ? parseFloat(fullActivity.max_cadence.toFixed(1)) : null,
+        // Power
+        average_watts: fullActivity.average_watts ? parseFloat(fullActivity.average_watts.toFixed(1)) : null,
+        max_watts: fullActivity.max_watts ? parseFloat(fullActivity.max_watts.toFixed(1)) : null,
+        // Calories - convert to integer
+        calories: fullActivity.calories ? Math.round(fullActivity.calories) : null,
         // Temperature
-        average_temp: fullActivity.average_temp || null,
-        // Suffer score
-        suffer_score: fullActivity.suffer_score || null,
-        // Time data
-        moving_time: fullActivity.moving_time || null,
-        elapsed_time: fullActivity.elapsed_time || null,
-        // Achievement data
-        achievement_count: fullActivity.achievement_count || null,
-        pr_count: fullActivity.pr_count || null,
-        kudos_count: fullActivity.kudos_count || null,
-        comment_count: fullActivity.comment_count || null,
+        average_temp: fullActivity.average_temp ? parseFloat(fullActivity.average_temp.toFixed(1)) : null,
+        // Suffer score - convert to integer
+        suffer_score: fullActivity.suffer_score ? Math.round(fullActivity.suffer_score) : null,
+        // Time - convert to integers
+        moving_time: fullActivity.moving_time ? Math.round(fullActivity.moving_time) : null,
+        elapsed_time: fullActivity.elapsed_time ? Math.round(fullActivity.elapsed_time) : null,
+        // Achievement data - convert to integers
+        achievement_count: fullActivity.achievement_count ? Math.round(fullActivity.achievement_count) : null,
+        pr_count: fullActivity.pr_count ? Math.round(fullActivity.pr_count) : null,
+        kudos_count: fullActivity.kudos_count ? Math.round(fullActivity.kudos_count) : null,
+        comment_count: fullActivity.comment_count ? Math.round(fullActivity.comment_count) : null,
         // Perceived exertion
-        perceived_exertion: fullActivity.perceived_exertion || null,
+        perceived_exertion: fullActivity.perceived_exertion ? parseFloat(fullActivity.perceived_exertion.toFixed(1)) : null,
         // Device
         device_name: fullActivity.device_name || null,
         // Gear
         gear_id: fullActivity.gear_id || null,
-        // Speed data
-        average_speed: fullActivity.average_speed || null,
-        max_speed: fullActivity.max_speed || null,
+        // Speed
+        average_speed: fullActivity.average_speed ? parseFloat(fullActivity.average_speed.toFixed(2)) : null,
+        max_speed: fullActivity.max_speed ? parseFloat(fullActivity.max_speed.toFixed(2)) : null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', runId)
@@ -180,14 +182,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to update run' }, { status: 500 })
     }
 
-    // Update the activity_streams to link to this run
-    await supabase
-      .from('activity_streams')
-      .update({ run_id: runId })
-      .eq('user_id', user.id)
-      .is('run_id', null)
-      .order('created_at', { ascending: false })
-      .limit(20) // Update the most recent streams (should be from this activity)
+    // Streams and HR zones are already linked via syncStravaActivity
+    // No need to update them separately
 
     // Update best performances
     const distance = parseFloat(distanceKm.toFixed(2))
