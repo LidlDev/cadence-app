@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Heart, Zap, TrendingUp, Mountain, Thermometer, Activity, Footprints, Gauge, Clock } from 'lucide-react'
-import { PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { X, Heart, Zap, TrendingUp, Mountain, Thermometer, Activity, Footprints, Gauge, Clock, BarChart3 } from 'lucide-react'
+import { PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from 'recharts'
 
 interface RunDetailModalProps {
   isOpen: boolean
@@ -144,6 +144,102 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
                 </div>
               )}
 
+              {/* Pace Analysis Bar Chart with Trendline */}
+              {data.streams?.velocity_smooth && data.streams?.distance && (
+                <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-6">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-emerald-600" />
+                    Pace Analysis by Kilometer
+                  </h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={prepareKmPaceData(data.streams)}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.1} />
+                      <XAxis
+                        dataKey="km"
+                        label={{ value: 'Kilometer', position: 'insideBottom', offset: -5 }}
+                        stroke="#64748b"
+                      />
+                      <YAxis
+                        label={{ value: 'Pace (min/km)', angle: -90, position: 'insideLeft' }}
+                        stroke="#64748b"
+                      />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }}
+                        labelStyle={{ color: '#f1f5f9' }}
+                        formatter={(value: any) => [`${value} min/km`, 'Pace']}
+                      />
+                      <Bar dataKey="pace" fill="#10b981" radius={[8, 8, 0, 0]} />
+                      <Line
+                        type="monotone"
+                        dataKey="trendline"
+                        stroke="#ef4444"
+                        strokeWidth={2}
+                        dot={false}
+                        strokeDasharray="5 5"
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 text-center">
+                    Red dashed line shows performance trend
+                  </p>
+                </div>
+              )}
+
+              {/* Splits Breakdown Table */}
+              {data.streams?.velocity_smooth && data.streams?.distance && (
+                <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-6">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-blue-600" />
+                    Kilometer Splits
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-300 dark:border-slate-600">
+                          <th className="text-left py-2 px-3 text-slate-700 dark:text-slate-300 font-semibold">KM</th>
+                          <th className="text-right py-2 px-3 text-slate-700 dark:text-slate-300 font-semibold">Pace</th>
+                          {data.streams?.heartrate && (
+                            <th className="text-right py-2 px-3 text-slate-700 dark:text-slate-300 font-semibold">Avg HR</th>
+                          )}
+                          {data.streams?.altitude && (
+                            <th className="text-right py-2 px-3 text-slate-700 dark:text-slate-300 font-semibold">Elev Δ</th>
+                          )}
+                          <th className="text-right py-2 px-3 text-slate-700 dark:text-slate-300 font-semibold">Split Time</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {prepareSplitsData(data.streams).map((split, idx) => (
+                          <tr
+                            key={idx}
+                            className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                          >
+                            <td className="py-2 px-3 text-slate-900 dark:text-white font-medium">
+                              {split.km}
+                            </td>
+                            <td className="py-2 px-3 text-right text-slate-900 dark:text-white">
+                              {split.pace}
+                            </td>
+                            {data.streams?.heartrate && (
+                              <td className="py-2 px-3 text-right text-slate-900 dark:text-white">
+                                {split.avgHr ? `${split.avgHr} bpm` : '-'}
+                              </td>
+                            )}
+                            {data.streams?.altitude && (
+                              <td className="py-2 px-3 text-right text-slate-900 dark:text-white">
+                                {split.elevDelta ? `${split.elevDelta > 0 ? '+' : ''}${split.elevDelta}m` : '-'}
+                              </td>
+                            )}
+                            <td className="py-2 px-3 text-right text-slate-900 dark:text-white font-mono">
+                              {split.splitTime}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
               {/* Heart Rate Zones */}
               {data.hrZones && (
                 <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-6">
@@ -206,15 +302,15 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
                 </div>
               )}
 
-              {/* Pace Graph */}
+              {/* Detailed Pace Graph */}
               {data.streams?.velocity_smooth && (
                 <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-6">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                     <TrendingUp className="w-5 h-5 text-emerald-600" />
-                    Pace Over Distance
+                    Detailed Pace Over Distance
                   </h3>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={preparePaceData(data.streams)}>
+                  <ResponsiveContainer width="100%" height={350}>
+                    <LineChart data={prepareDetailedPaceData(data.streams)}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.1} />
                       <XAxis
                         dataKey="distance"
@@ -228,28 +324,32 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
                       <Tooltip
                         contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }}
                         labelStyle={{ color: '#f1f5f9' }}
+                        formatter={(value: any) => [`${value} min/km`, 'Pace']}
                       />
                       <Line
                         type="monotone"
                         dataKey="pace"
                         stroke="#10b981"
-                        strokeWidth={2}
+                        strokeWidth={1.5}
                         dot={false}
                       />
                     </LineChart>
                   </ResponsiveContainer>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 text-center">
+                    Granular pace data showing every data point
+                  </p>
                 </div>
               )}
 
-              {/* Elevation Profile */}
+              {/* Detailed Elevation Profile */}
               {data.streams?.altitude && (
                 <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-6">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                     <Mountain className="w-5 h-5 text-amber-600" />
-                    Elevation Profile
+                    Detailed Elevation Profile
                   </h3>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <AreaChart data={prepareElevationData(data.streams)}>
+                  <ResponsiveContainer width="100%" height={350}>
+                    <AreaChart data={prepareDetailedElevationData(data.streams)}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.1} />
                       <XAxis
                         dataKey="distance"
@@ -263,6 +363,7 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
                       <Tooltip
                         contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }}
                         labelStyle={{ color: '#f1f5f9' }}
+                        formatter={(value: any) => [`${value}m`, 'Elevation']}
                       />
                       <Area
                         type="monotone"
@@ -273,18 +374,21 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
                       />
                     </AreaChart>
                   </ResponsiveContainer>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 text-center">
+                    Full elevation profile with all data points
+                  </p>
                 </div>
               )}
 
-              {/* Heart Rate Graph */}
+              {/* Detailed Heart Rate Graph */}
               {data.streams?.heartrate && (
                 <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-6">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                     <Heart className="w-5 h-5 text-red-600" />
-                    Heart Rate Over Time
+                    Detailed Heart Rate Over Time
                   </h3>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={prepareHRData(data.streams)}>
+                  <ResponsiveContainer width="100%" height={350}>
+                    <AreaChart data={prepareDetailedHRData(data.streams)}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.1} />
                       <XAxis
                         dataKey="time"
@@ -294,20 +398,26 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
                       <YAxis
                         label={{ value: 'Heart Rate (bpm)', angle: -90, position: 'insideLeft' }}
                         stroke="#64748b"
+                        domain={['dataMin - 10', 'dataMax + 10']}
                       />
                       <Tooltip
                         contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }}
                         labelStyle={{ color: '#f1f5f9' }}
+                        formatter={(value: any) => [`${value} bpm`, 'Heart Rate']}
                       />
-                      <Line
+                      <Area
                         type="monotone"
                         dataKey="hr"
                         stroke="#ef4444"
-                        strokeWidth={2}
-                        dot={false}
+                        fill="#ef4444"
+                        fillOpacity={0.2}
+                        strokeWidth={1.5}
                       />
-                    </LineChart>
+                    </AreaChart>
                   </ResponsiveContainer>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 text-center">
+                    Granular heart rate data showing every beat
+                  </p>
                 </div>
               )}
 
@@ -346,15 +456,15 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
                 </div>
               )}
 
-              {/* Power Graph */}
+              {/* Detailed Power Graph */}
               {data.streams?.watts && (
                 <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-6">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                     <Gauge className="w-5 h-5 text-yellow-600" />
-                    Power Over Time
+                    Detailed Power Over Time
                   </h3>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={preparePowerData(data.streams)}>
+                  <ResponsiveContainer width="100%" height={350}>
+                    <AreaChart data={prepareDetailedPowerData(data.streams)}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.1} />
                       <XAxis
                         dataKey="time"
@@ -368,16 +478,21 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
                       <Tooltip
                         contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }}
                         labelStyle={{ color: '#f1f5f9' }}
+                        formatter={(value: any) => [`${value}W`, 'Power']}
                       />
-                      <Line
+                      <Area
                         type="monotone"
                         dataKey="power"
                         stroke="#eab308"
-                        strokeWidth={2}
-                        dot={false}
+                        fill="#eab308"
+                        fillOpacity={0.2}
+                        strokeWidth={1.5}
                       />
-                    </LineChart>
+                    </AreaChart>
                   </ResponsiveContainer>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 text-center">
+                    Full power output data
+                  </p>
                 </div>
               )}
 
@@ -443,35 +558,196 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
 }
 
 // Helper functions to prepare chart data
-function preparePaceData(streams: any) {
+
+// Detailed pace data (every 5th point for performance)
+function prepareDetailedPaceData(streams: any) {
   if (!streams.velocity_smooth || !streams.distance) return []
 
   const data = []
   const velocityData = streams.velocity_smooth.data
   const distanceData = streams.distance.data
 
-  for (let i = 0; i < velocityData.length; i += 10) { // Sample every 10 points
+  for (let i = 0; i < velocityData.length; i += 5) {
     const velocity = velocityData[i] // m/s
     const distance = distanceData[i] / 1000 // Convert to km
     const paceMinPerKm = velocity > 0 ? (1000 / 60) / velocity : 0
 
-    data.push({
-      distance: distance.toFixed(2),
-      pace: paceMinPerKm.toFixed(2),
-    })
+    if (paceMinPerKm > 0 && paceMinPerKm < 15) { // Filter out unrealistic paces
+      data.push({
+        distance: distance.toFixed(2),
+        pace: paceMinPerKm.toFixed(2),
+      })
+    }
   }
 
   return data
 }
 
-function prepareElevationData(streams: any) {
+// Pace analysis by kilometer with trendline
+function prepareKmPaceData(streams: any) {
+  if (!streams.velocity_smooth || !streams.distance) return []
+
+  const velocityData = streams.velocity_smooth.data
+  const distanceData = streams.distance.data
+  const kmData: { km: string; pace: number; trendline?: number }[] = []
+
+  let currentKm = 1
+  let kmStartIdx = 0
+
+  for (let i = 0; i < distanceData.length; i++) {
+    const distanceKm = distanceData[i] / 1000
+
+    if (distanceKm >= currentKm || i === distanceData.length - 1) {
+      // Calculate average pace for this km
+      let totalPace = 0
+      let count = 0
+
+      for (let j = kmStartIdx; j <= i; j++) {
+        const velocity = velocityData[j]
+        if (velocity > 0) {
+          const paceMinPerKm = (1000 / 60) / velocity
+          if (paceMinPerKm > 0 && paceMinPerKm < 15) {
+            totalPace += paceMinPerKm
+            count++
+          }
+        }
+      }
+
+      if (count > 0) {
+        const avgPace = totalPace / count
+        kmData.push({
+          km: `KM ${currentKm}`,
+          pace: parseFloat(avgPace.toFixed(2)),
+        })
+      }
+
+      currentKm++
+      kmStartIdx = i + 1
+    }
+  }
+
+  // Calculate linear trendline
+  if (kmData.length > 1) {
+    const n = kmData.length
+    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0
+
+    kmData.forEach((point, idx) => {
+      const x = idx + 1
+      const y = point.pace
+      sumX += x
+      sumY += y
+      sumXY += x * y
+      sumX2 += x * x
+    })
+
+    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX)
+    const intercept = (sumY - slope * sumX) / n
+
+    kmData.forEach((point, idx) => {
+      point.trendline = parseFloat((slope * (idx + 1) + intercept).toFixed(2))
+    })
+  }
+
+  return kmData
+}
+
+// Splits data with pace, HR, elevation, and time
+function prepareSplitsData(streams: any) {
+  if (!streams.velocity_smooth || !streams.distance || !streams.time) return []
+
+  const velocityData = streams.velocity_smooth.data
+  const distanceData = streams.distance.data
+  const timeData = streams.time.data
+  const hrData = streams.heartrate?.data
+  const altitudeData = streams.altitude?.data
+
+  const splits: any[] = []
+  let currentKm = 1
+  let kmStartIdx = 0
+  let lastTime = 0
+
+  for (let i = 0; i < distanceData.length; i++) {
+    const distanceKm = distanceData[i] / 1000
+
+    if (distanceKm >= currentKm || i === distanceData.length - 1) {
+      // Calculate average pace for this km
+      let totalPace = 0
+      let paceCount = 0
+
+      for (let j = kmStartIdx; j <= i; j++) {
+        const velocity = velocityData[j]
+        if (velocity > 0) {
+          const paceMinPerKm = (1000 / 60) / velocity
+          if (paceMinPerKm > 0 && paceMinPerKm < 15) {
+            totalPace += paceMinPerKm
+            paceCount++
+          }
+        }
+      }
+
+      const avgPace = paceCount > 0 ? totalPace / paceCount : 0
+      const paceMin = Math.floor(avgPace)
+      const paceSec = Math.round((avgPace - paceMin) * 60)
+
+      // Calculate average HR for this km
+      let avgHr = null
+      if (hrData) {
+        let totalHr = 0
+        let hrCount = 0
+        for (let j = kmStartIdx; j <= i; j++) {
+          if (hrData[j] > 0) {
+            totalHr += hrData[j]
+            hrCount++
+          }
+        }
+        avgHr = hrCount > 0 ? Math.round(totalHr / hrCount) : null
+      }
+
+      // Calculate elevation delta for this km
+      let elevDelta = null
+      if (altitudeData) {
+        const startElev = altitudeData[kmStartIdx]
+        const endElev = altitudeData[i]
+        elevDelta = Math.round(endElev - startElev)
+      }
+
+      // Calculate split time
+      const currentTime = timeData[i]
+      const splitSeconds = currentTime - lastTime
+      const splitMin = Math.floor(splitSeconds / 60)
+      const splitSec = Math.round(splitSeconds % 60)
+
+      splits.push({
+        km: `KM ${currentKm}`,
+        pace: `${paceMin}:${paceSec.toString().padStart(2, '0')}`,
+        avgHr,
+        elevDelta,
+        splitTime: `${splitMin}:${splitSec.toString().padStart(2, '0')}`,
+      })
+
+      lastTime = currentTime
+      currentKm++
+      kmStartIdx = i + 1
+    }
+  }
+
+  return splits
+}
+
+// Legacy function for compatibility
+function preparePaceData(streams: any) {
+  return prepareDetailedPaceData(streams)
+}
+
+// Detailed elevation data (every 5th point)
+function prepareDetailedElevationData(streams: any) {
   if (!streams.altitude || !streams.distance) return []
 
   const data = []
   const altitudeData = streams.altitude.data
   const distanceData = streams.distance.data
 
-  for (let i = 0; i < altitudeData.length; i += 10) { // Sample every 10 points
+  for (let i = 0; i < altitudeData.length; i += 5) {
     data.push({
       distance: (distanceData[i] / 1000).toFixed(2),
       elevation: altitudeData[i].toFixed(1),
@@ -481,21 +757,34 @@ function prepareElevationData(streams: any) {
   return data
 }
 
-function prepareHRData(streams: any) {
+// Legacy function for compatibility
+function prepareElevationData(streams: any) {
+  return prepareDetailedElevationData(streams)
+}
+
+// Detailed HR data (every 3rd point for smooth visualization)
+function prepareDetailedHRData(streams: any) {
   if (!streams.heartrate || !streams.time) return []
 
   const data = []
   const hrData = streams.heartrate.data
   const timeData = streams.time.data
 
-  for (let i = 0; i < hrData.length; i += 10) { // Sample every 10 points
-    data.push({
-      time: (timeData[i] / 60).toFixed(1), // Convert to minutes
-      hr: hrData[i],
-    })
+  for (let i = 0; i < hrData.length; i += 3) {
+    if (hrData[i] > 0) { // Filter out zero values
+      data.push({
+        time: (timeData[i] / 60).toFixed(1), // Convert to minutes
+        hr: hrData[i],
+      })
+    }
   }
 
   return data
+}
+
+// Legacy function for compatibility
+function prepareHRData(streams: any) {
+  return prepareDetailedHRData(streams)
 }
 
 function prepareCadenceData(streams: any) {
@@ -505,31 +794,41 @@ function prepareCadenceData(streams: any) {
   const cadenceData = streams.cadence.data
   const timeData = streams.time.data
 
-  for (let i = 0; i < cadenceData.length; i += 10) { // Sample every 10 points
-    data.push({
-      time: (timeData[i] / 60).toFixed(1), // Convert to minutes
-      cadence: cadenceData[i] * 2, // Strava returns steps per second, multiply by 2 for spm
-    })
+  for (let i = 0; i < cadenceData.length; i += 5) {
+    if (cadenceData[i] > 0) { // Filter out zero values
+      data.push({
+        time: (timeData[i] / 60).toFixed(1), // Convert to minutes
+        cadence: cadenceData[i] * 2, // Strava returns steps per second, multiply by 2 for spm
+      })
+    }
   }
 
   return data
 }
 
-function preparePowerData(streams: any) {
+// Detailed power data (every 5th point)
+function prepareDetailedPowerData(streams: any) {
   if (!streams.watts || !streams.time) return []
 
   const data = []
   const powerData = streams.watts.data
   const timeData = streams.time.data
 
-  for (let i = 0; i < powerData.length; i += 10) { // Sample every 10 points
-    data.push({
-      time: (timeData[i] / 60).toFixed(1), // Convert to minutes
-      power: powerData[i],
-    })
+  for (let i = 0; i < powerData.length; i += 5) {
+    if (powerData[i] > 0) { // Filter out zero values
+      data.push({
+        time: (timeData[i] / 60).toFixed(1), // Convert to minutes
+        power: powerData[i],
+      })
+    }
   }
 
   return data
+}
+
+// Legacy function for compatibility
+function preparePowerData(streams: any) {
+  return prepareDetailedPowerData(streams)
 }
 
 function prepareTempData(streams: any) {
