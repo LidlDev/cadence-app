@@ -27,8 +27,11 @@ export async function updateBestPerformances(
   const standardDistance = distanceMap[distance]
   if (!standardDistance) {
     // Not a standard distance, skip
+    console.log(`Skipping best performance update for non-standard distance: ${distance}km`)
     return
   }
+
+  console.log(`Updating best performances for ${standardDistance} (${distance}km) - Time: ${time}, Pace: ${pace}`)
 
   // Convert time to seconds for comparison
   const timeToSeconds = (timeStr: string): number => {
@@ -49,7 +52,7 @@ export async function updateBestPerformances(
     .from('best_performances')
     .select('*')
     .eq('user_id', userId)
-    .eq('distance', standardDistance)
+    .eq('distance_label', standardDistance)
     .order('rank', { ascending: true })
 
   if (fetchError) {
@@ -61,7 +64,7 @@ export async function updateBestPerformances(
   const performances = existingPerfs || []
   const performanceTimes = performances.map((p) => ({
     ...p,
-    seconds: timeToSeconds(p.time),
+    seconds: p.time_seconds,
   }))
 
   // Add new performance
@@ -69,10 +72,11 @@ export async function updateBestPerformances(
     id: null,
     run_id: runId,
     user_id: userId,
-    distance: standardDistance,
-    time,
-    pace,
-    date,
+    distance_label: standardDistance,
+    distance_meters: distance * 1000,
+    time_seconds: newTimeSeconds,
+    pace_per_km: pace,
+    activity_date: date,
     rank: 0,
     seconds: newTimeSeconds,
     created_at: new Date().toISOString(),
@@ -90,17 +94,18 @@ export async function updateBestPerformances(
       .from('best_performances')
       .delete()
       .eq('user_id', userId)
-      .eq('distance', standardDistance)
+      .eq('distance_label', standardDistance)
   }
 
   // Insert top 3 with updated ranks
   const insertData = top3.map((perf, index) => ({
     user_id: userId,
     run_id: perf.run_id,
-    distance: standardDistance,
-    time: perf.time,
-    pace: perf.pace,
-    date: perf.date,
+    distance_label: standardDistance,
+    distance_meters: distance * 1000,
+    time_seconds: perf.seconds,
+    pace_per_km: perf.pace_per_km,
+    activity_date: perf.activity_date,
     rank: index + 1,
   }))
 
@@ -110,6 +115,8 @@ export async function updateBestPerformances(
 
   if (insertError) {
     console.error('Error inserting best performances:', insertError)
+  } else {
+    console.log(`Successfully updated best performances for ${standardDistance}. Inserted ${insertData.length} records.`)
   }
 }
 

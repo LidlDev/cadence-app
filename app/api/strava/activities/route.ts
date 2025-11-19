@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
 
     const activities = await activitiesResponse.json()
 
-    // Filter for runs only and format the data
+    // Filter for runs only and format the data (already sorted by date descending from Strava API)
     const runs = activities
       .filter((a: any) => a.type === 'Run')
       .map((activity: any) => ({
@@ -115,6 +115,8 @@ export async function GET(request: NextRequest) {
         elevation_gain: activity.total_elevation_gain,
         suffer_score: activity.suffer_score,
       }))
+      // Strava API returns newest first by default, but let's ensure it
+      .sort((a: any, b: any) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())
 
     return NextResponse.json({ success: true, activities: runs })
   } catch (error) {

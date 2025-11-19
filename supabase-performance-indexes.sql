@@ -27,8 +27,8 @@ CREATE INDEX IF NOT EXISTS idx_hr_zones_run
 ON activity_heart_rate_zones(run_id) WHERE run_id IS NOT NULL;
 
 -- Index for best_performances table
-CREATE INDEX IF NOT EXISTS idx_best_performances_user_distance 
-ON best_performances(user_id, distance, rank);
+CREATE INDEX IF NOT EXISTS idx_best_performances_user_distance
+ON best_performances(user_id, distance_label, rank);
 
 -- Index for strava_tokens table
 CREATE INDEX IF NOT EXISTS idx_strava_tokens_user 

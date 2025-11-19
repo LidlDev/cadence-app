@@ -8,10 +8,10 @@ import { useRouter } from 'next/navigation'
 interface Performance {
   id: string
   run_id: string
-  distance: string
-  time: string
-  pace: string
-  date: string
+  distance_label: string
+  time_seconds: number
+  pace_per_km: string
+  activity_date: string
   rank: number
 }
 
@@ -39,7 +39,7 @@ export default function BestPerformances({ userId }: BestPerformancesProps) {
         .from('best_performances')
         .select('*')
         .eq('user_id', userId)
-        .order('distance', { ascending: true })
+        .order('distance_label', { ascending: true })
         .order('rank', { ascending: true })
 
       if (error) throw error
@@ -47,10 +47,10 @@ export default function BestPerformances({ userId }: BestPerformancesProps) {
       // Group by distance
       const grouped: { [key: string]: Performance[] } = {}
       data?.forEach((perf) => {
-        if (!grouped[perf.distance]) {
-          grouped[perf.distance] = []
+        if (!grouped[perf.distance_label]) {
+          grouped[perf.distance_label] = []
         }
-        grouped[perf.distance].push(perf)
+        grouped[perf.distance_label].push(perf)
       })
 
       setPerformances(grouped)
@@ -120,26 +120,36 @@ export default function BestPerformances({ userId }: BestPerformancesProps) {
             
             {performances[distance] && performances[distance].length > 0 ? (
               <div className="space-y-2">
-                {performances[distance].map((perf) => (
-                  <div
-                    key={perf.id}
-                    className={`flex items-center justify-between p-4 rounded-lg border ${getMedalColor(perf.rank)} transition-all hover:shadow-md cursor-pointer`}
-                    onClick={() => handleViewRun(perf.run_id)}
-                  >
-                    <div className="flex items-center gap-3">
-                      {getMedalIcon(perf.rank)}
-                      <div>
-                        <p className="font-semibold text-slate-900 dark:text-white">
-                          {perf.time}
-                        </p>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">
-                          {perf.pace} • {new Date(perf.date).toLocaleDateString()}
-                        </p>
+                {performances[distance].map((perf) => {
+                  // Convert time_seconds to formatted time
+                  const hours = Math.floor(perf.time_seconds / 3600)
+                  const minutes = Math.floor((perf.time_seconds % 3600) / 60)
+                  const seconds = perf.time_seconds % 60
+                  const formattedTime = hours > 0
+                    ? `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+                    : `${minutes}:${seconds.toString().padStart(2, '0')}`
+
+                  return (
+                    <div
+                      key={perf.id}
+                      className={`flex items-center justify-between p-4 rounded-lg border ${getMedalColor(perf.rank)} transition-all hover:shadow-md cursor-pointer`}
+                      onClick={() => handleViewRun(perf.run_id)}
+                    >
+                      <div className="flex items-center gap-3">
+                        {getMedalIcon(perf.rank)}
+                        <div>
+                          <p className="font-semibold text-slate-900 dark:text-white">
+                            {formattedTime}
+                          </p>
+                          <p className="text-sm text-slate-600 dark:text-slate-400">
+                            {perf.pace_per_km}/km • {new Date(perf.activity_date).toLocaleDateString()}
+                          </p>
+                        </div>
                       </div>
+                      <ExternalLink className="w-4 h-4 text-slate-400" />
                     </div>
-                    <ExternalLink className="w-4 h-4 text-slate-400" />
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             ) : (
               <p className="text-sm text-slate-500 dark:text-slate-400 italic">

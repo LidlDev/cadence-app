@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { syncStravaActivity } from '@/lib/strava/activity-sync'
+import { updateBestPerformances } from '@/lib/utils/update-best-performances'
 
 /**
  * Link a specific Strava activity to a run
@@ -123,6 +124,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update the run with the synced data
+    // Only update columns that exist in the base runs table
     const { error: updateError } = await supabase
       .from('runs')
       .update({
@@ -130,17 +132,6 @@ export async function POST(request: NextRequest) {
         actual_distance: parseFloat(distanceKm.toFixed(2)),
         actual_time: duration,
         actual_pace: pace,
-        average_hr: activity.average_heartrate,
-        max_hr: activity.max_heartrate,
-        average_cadence: activity.average_cadence,
-        elev_high: activity.elev_high,
-        elev_low: activity.elev_low,
-        total_elevation_gain: activity.total_elevation_gain,
-        suffer_score: activity.suffer_score,
-        has_heartrate: activity.has_heartrate,
-        has_cadence: !!activity.average_cadence,
-        calories: activity.calories,
-        strava_synced: true,
         completed: true,
         updated_at: new Date().toISOString(),
       })
@@ -160,6 +151,18 @@ export async function POST(request: NextRequest) {
       .is('run_id', null)
       .order('created_at', { ascending: false })
       .limit(20) // Update the most recent streams (should be from this activity)
+
+    // Update best performances
+    const distance = parseFloat(distanceKm.toFixed(2))
+    await updateBestPerformances(
+      supabase,
+      user.id,
+      runId,
+      distance,
+      duration,
+      pace,
+      new Date().toISOString().split('T')[0]
+    )
 
     return NextResponse.json({
       success: true,

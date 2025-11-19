@@ -22,9 +22,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Check if API key is configured
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('OpenAI API key not configured')
+      return NextResponse.json({
+        error: 'AI chat is not configured. Please add OPENAI_API_KEY to environment variables.'
+      }, { status: 500 })
+    }
+
     // Build user context
     const context = await buildUserContext(supabase, user.id)
     const systemMessage = formatContextForAI(context)
+
+    console.log('Calling OpenAI API with model: gpt-4o-mini')
 
     // Call OpenAI API
     const completion = await openai.chat.completions.create({
@@ -42,6 +52,8 @@ export async function POST(request: NextRequest) {
 
     const assistantMessage = completion.choices[0].message.content
 
+    console.log('OpenAI API call successful')
+
     // Extract and store any important information as memories
     await extractAndStoreMemories(supabase, user.id, messages[messages.length - 1].content, assistantMessage)
 
@@ -49,9 +61,28 @@ export async function POST(request: NextRequest) {
       success: true,
       message: assistantMessage,
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in AI chat:', error)
-    return NextResponse.json({ error: 'Failed to process chat' }, { status: 500 })
+    console.error('Error details:', {
+      message: error?.message,
+      status: error?.status,
+      type: error?.type,
+      code: error?.code,
+    })
+
+    // Provide more specific error messages
+    let errorMessage = 'Failed to process chat'
+    if (error?.status === 401) {
+      errorMessage = 'Invalid OpenAI API key. Please check your configuration.'
+    } else if (error?.status === 429) {
+      errorMessage = 'OpenAI API rate limit exceeded. Please try again later.'
+    } else if (error?.code === 'insufficient_quota') {
+      errorMessage = 'OpenAI API quota exceeded. Please check your billing.'
+    } else if (error?.message) {
+      errorMessage = `AI Error: ${error.message}`
+    }
+
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }
 
