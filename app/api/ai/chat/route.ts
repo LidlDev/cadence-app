@@ -34,10 +34,10 @@ export async function POST(request: NextRequest) {
     const context = await buildUserContext(supabase, user.id)
     const systemMessage = formatContextForAI(context)
 
-    console.log('Calling OpenAI API with model: gpt-4o-mini')
+    console.log('Calling OpenAI API with model: gpt-4o-mini (streaming)')
 
-    // Call OpenAI API
-    const completion = await openai.chat.completions.create({
+    // Call OpenAI API with streaming to avoid timeout
+    const stream = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {
@@ -48,18 +48,44 @@ export async function POST(request: NextRequest) {
       ],
       temperature: 0.7,
       max_tokens: 1000,
+      stream: true,
     })
 
-    const assistantMessage = completion.choices[0].message.content
+    // Create a readable stream for the response
+    const encoder = new TextEncoder()
+    let fullMessage = ''
 
-    console.log('OpenAI API call successful')
+    const readableStream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            const content = chunk.choices[0]?.delta?.content || ''
+            if (content) {
+              fullMessage += content
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`))
+            }
+          }
 
-    // Extract and store any important information as memories
-    await extractAndStoreMemories(supabase, user.id, messages[messages.length - 1].content, assistantMessage)
+          // Send done signal
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+          controller.close()
 
-    return NextResponse.json({
-      success: true,
-      message: assistantMessage,
+          // Store memories after streaming completes (non-blocking)
+          extractAndStoreMemories(supabase, user.id, messages[messages.length - 1].content, fullMessage)
+            .catch(err => console.error('Error storing memories:', err))
+        } catch (error) {
+          console.error('Streaming error:', error)
+          controller.error(error)
+        }
+      },
+    })
+
+    return new Response(readableStream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
     })
   } catch (error: any) {
     console.error('Error in AI chat:', error)
