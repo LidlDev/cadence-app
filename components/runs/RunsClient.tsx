@@ -6,6 +6,7 @@ import RunCard from './RunCard'
 import AddRunModal from './AddRunModal'
 import FeaturedRunCard from './FeaturedRunCard'
 import CalendarView from './CalendarView'
+import BestPerformances from './BestPerformances'
 import { Calendar, Filter, Plus } from 'lucide-react'
 import { format, isAfter, isBefore, startOfDay } from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
@@ -66,6 +67,13 @@ export default function RunsClient({ runs, userId }: RunsClientProps) {
             Add Run
           </button>
         </div>
+
+        {/* Best Performances Section */}
+        {filter === 'all' && (
+          <div className="mb-8">
+            <BestPerformances userId={userId} />
+          </div>
+        )}
 
         {/* Featured Upcoming Run */}
         {nextUpcomingRun && filter === 'upcoming' && (
@@ -131,7 +139,7 @@ export default function RunsClient({ runs, userId }: RunsClientProps) {
           /* Runs Grid for Completed/All */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredRuns.map(run => (
-              <RunCard key={run.id} run={run} />
+              <RunCard key={run.id} run={run} userId={userId} />
             ))}
           </div>
         )}

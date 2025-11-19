@@ -5,7 +5,7 @@ import MileageChart from './MileageChart'
 import PersonalBestsCard from './PersonalBestsCard'
 import PredictionsCard from './PredictionsCard'
 import SufferScoreCard from './SufferScoreCard'
-import AIAssistant from './AIAssistant'
+import AIChat from './AIChat'
 
 interface DashboardClientProps {
   runs: Run[]
@@ -51,8 +51,10 @@ export default function DashboardClient({
           {/* Weekly Suffer Score */}
           <SufferScoreCard stravaActivities={stravaActivities} />
 
-          {/* AI Assistant */}
-          <AIAssistant />
+          {/* AI Chat */}
+          <div className="lg:col-span-2">
+            <AIChat />
+          </div>
         </div>
       </div>
     </div>

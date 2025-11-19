@@ -3,15 +3,20 @@
 import { useState } from 'react'
 import { Run } from '@/lib/types/database'
 import { format } from 'date-fns'
-import { CheckCircle, Circle, Clock, MapPin, Zap, MessageSquare } from 'lucide-react'
+import { CheckCircle, Circle, Clock, MapPin, Zap, MessageSquare, Activity } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import RunDetailModal from './RunDetailModal'
+import { updateBestPerformances } from '@/lib/utils/update-best-performances'
 
 interface RunCardProps {
   run: Run
+  userId: string
 }
 
-export default function RunCard({ run }: RunCardProps) {
+export default function RunCard({ run, userId }: RunCardProps) {
   const [isLogging, setIsLogging] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [showDetailModal, setShowDetailModal] = useState(false)
   const [formData, setFormData] = useState({
     actual_distance: run.actual_distance || run.planned_distance,
     actual_pace: run.actual_pace || '',
@@ -41,12 +46,25 @@ export default function RunCard({ run }: RunCardProps) {
     // Check if this is a new PB
     await checkAndUpdatePB(supabase, formData.actual_distance, formData.actual_time, formData.actual_pace)
 
+    // Update best performances
+    if (formData.actual_time && formData.actual_pace) {
+      await updateBestPerformances(
+        supabase,
+        userId,
+        run.id,
+        formData.actual_distance,
+        formData.actual_time,
+        formData.actual_pace,
+        run.scheduled_date
+      )
+    }
+
     window.location.reload()
   }
 
   const checkAndUpdatePB = async (supabase: any, distance: number, time: string, pace: string) => {
     // Map distance to PB distance categories
-    const pbDistanceMap: { [key: number]: string } = {
+    const pbDistanceMap: { [key: number]: string} = {
       5: '5K',
       10: '10K',
       21.1: 'Half Marathon',
@@ -108,6 +126,36 @@ export default function RunCard({ run }: RunCardProps) {
           pace,
           is_target: false,
         })
+    }
+  }
+
+  const handleSyncStrava = async () => {
+    setIsSyncing(true)
+    try {
+      const response = await fetch('/api/strava/sync-latest', {
+        method: 'POST',
+      })
+
+      const result = await response.json()
+
+      if (result.success && result.data) {
+        // Auto-populate form with Strava data
+        setFormData({
+          actual_distance: parseFloat(result.data.distance),
+          actual_time: result.data.duration,
+          actual_pace: result.data.pace,
+          rpe: formData.rpe,
+          comments: formData.comments || `Synced from Strava: ${result.data.name}`,
+        })
+        alert('✅ Successfully synced with Strava!')
+      } else {
+        alert(result.error || 'Failed to sync with Strava')
+      }
+    } catch (error) {
+      console.error('Error syncing with Strava:', error)
+      alert('Failed to sync with Strava. Please try again.')
+    } finally {
+      setIsSyncing(false)
     }
   }
 
@@ -192,6 +240,27 @@ export default function RunCard({ run }: RunCardProps) {
             </button>
           ) : (
             <div className="space-y-3">
+              {/* Sync with Strava Button */}
+              <button
+                onClick={handleSyncStrava}
+                disabled={isSyncing}
+                className="w-full px-4 py-2 bg-[#FC4C02] hover:bg-[#E34402] disabled:bg-slate-400 text-white rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+              >
+                <Activity className="w-4 h-4" />
+                {isSyncing ? 'Syncing...' : 'Sync with Strava'}
+              </button>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-300 dark:border-slate-600"></div>
+                </div>
+                <div className="relative flex justify-center text-xs">
+                  <span className="bg-white dark:bg-slate-800 px-2 text-slate-500 dark:text-slate-400">
+                    or enter manually
+                  </span>
+                </div>
+              </div>
+
               <input
                 type="number"
                 step="0.1"
@@ -252,8 +321,23 @@ export default function RunCard({ run }: RunCardProps) {
               {run.comments}
             </p>
           )}
+          <button
+            onClick={() => setShowDetailModal(true)}
+            className="mt-3 w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+          >
+            <Activity className="w-4 h-4" />
+            View Details
+          </button>
         </div>
       )}
+
+      {/* Run Detail Modal */}
+      <RunDetailModal
+        isOpen={showDetailModal}
+        onClose={() => setShowDetailModal(false)}
+        runId={run.id}
+        userId={userId}
+      />
     </div>
   )
 }

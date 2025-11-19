@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { TrendingUp } from 'lucide-react'
+import { TrendingUp, Target } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import { calculateVDOTFromRuns, getRacePredictions, timeToSeconds } from '@/lib/utils/vdot'
 
 interface Prediction {
   distance: string
@@ -11,6 +13,7 @@ interface Prediction {
 
 export default function PredictionsCard() {
   const [predictions, setPredictions] = useState<Prediction[]>([])
+  const [vdot, setVdot] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -19,9 +22,52 @@ export default function PredictionsCard() {
 
   const fetchPredictions = async () => {
     try {
-      const response = await fetch('/api/ai/predictions')
-      const data = await response.json()
-      setPredictions(data.predictions || [])
+      const supabase = createClient()
+
+      // Fetch completed runs from last 30 days
+      const { data: runs } = await supabase
+        .from('runs')
+        .select('actual_distance, actual_time, scheduled_date')
+        .eq('completed', true)
+        .not('actual_time', 'is', null)
+        .order('scheduled_date', { ascending: false })
+        .limit(50)
+
+      if (!runs || runs.length === 0) {
+        setLoading(false)
+        return
+      }
+
+      // Calculate VDOT from recent performances
+      const calculatedVDOT = calculateVDOTFromRuns(runs)
+
+      if (!calculatedVDOT) {
+        setLoading(false)
+        return
+      }
+
+      setVdot(calculatedVDOT)
+
+      // Get race predictions
+      const racePredictions = getRacePredictions(calculatedVDOT)
+
+      // Format predictions with pace
+      const formattedPredictions: Prediction[] = Object.entries(racePredictions).map(([distance, time]) => {
+        const distanceKm = distance === '5K' ? 5 : distance === '10K' ? 10 : distance === 'Half Marathon' ? 21.0975 : 42.195
+        const timeSeconds = timeToSeconds(time)
+        const paceSeconds = timeSeconds / distanceKm
+        const paceMinutes = Math.floor(paceSeconds / 60)
+        const paceSecondsRemainder = Math.floor(paceSeconds % 60)
+        const pace = `${paceMinutes}:${paceSecondsRemainder.toString().padStart(2, '0')}/km`
+
+        return {
+          distance,
+          predictedTime: time,
+          pace,
+        }
+      })
+
+      setPredictions(formattedPredictions)
     } catch (error) {
       console.error('Failed to fetch predictions:', error)
     } finally {
@@ -32,8 +78,8 @@ export default function PredictionsCard() {
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-6">
       <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-        <TrendingUp className="w-6 h-6 text-purple-500" />
-        Performance Predictions
+        <Target className="w-6 h-6 text-purple-500" />
+        Race Predictions
       </h2>
 
       {loading ? (
@@ -43,29 +89,62 @@ export default function PredictionsCard() {
           ))}
         </div>
       ) : predictions.length > 0 ? (
-        <div className="space-y-3">
-          {predictions.map((pred, idx) => (
-            <div key={idx} className="flex justify-between items-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-              <div>
-                <p className="font-semibold text-slate-900 dark:text-white">
-                  {pred.distance}
-                </p>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  {pred.pace}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="font-bold text-purple-600 dark:text-purple-400 text-lg">
-                  {pred.predictedTime}
+        <>
+          {/* VDOT Display */}
+          {vdot && (
+            <div className="mb-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">Your VDOT</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
+                    Based on recent performances
+                  </p>
+                </div>
+                <p className="text-4xl font-bold text-purple-600 dark:text-purple-400">
+                  {vdot.toFixed(1)}
                 </p>
               </div>
             </div>
-          ))}
-        </div>
+          )}
+
+          {/* Predictions */}
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-2">
+              Predicted Race Times
+            </h3>
+            {predictions.map((pred, idx) => (
+              <div key={idx} className="flex justify-between items-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-100 dark:border-purple-800">
+                <div>
+                  <p className="font-semibold text-slate-900 dark:text-white">
+                    {pred.distance}
+                  </p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    {pred.pace} pace
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="font-bold text-purple-600 dark:text-purple-400 text-lg">
+                    {pred.predictedTime}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-4 italic">
+            Predictions based on VDOT formula (Jack Daniels' Running Formula)
+          </p>
+        </>
       ) : (
-        <p className="text-slate-500 dark:text-slate-400 text-sm">
-          Complete some runs to see predictions
-        </p>
+        <div className="text-center py-8">
+          <Target className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+          <p className="text-slate-500 dark:text-slate-400 text-sm">
+            Complete some runs to see race predictions
+          </p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
+            We'll calculate your VDOT and predict race times
+          </p>
+        </div>
       )}
     </div>
   )
