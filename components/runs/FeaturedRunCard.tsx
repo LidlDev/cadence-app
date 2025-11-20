@@ -29,13 +29,16 @@ export default function FeaturedRunCard({ run, onLogRun }: FeaturedRunCardProps)
   }
 
   const gradient = runTypeColors[run.run_type as keyof typeof runTypeColors] || 'from-primary-600 to-primary-700 dark:from-primary-500 dark:to-primary-600'
-  const icon = runTypeIcons[run.run_type as keyof typeof runTypeIcons] || '🏃'
+  const icon = runTypeIcons[run.run_type as keyof typeof runTypeIcons] || '🏃‍♂️'
 
   // Parse pace - handle both "min/km" format and plain numbers
-  const displayPace = run.planned_pace
-    ? (run.planned_pace.toString().includes(':') || run.planned_pace.toString().includes('/'))
-      ? run.planned_pace
-      : `${run.planned_pace} min/km`
+  // Prioritize target_pace from CSV/DB, fall back to planned_pace
+  const rawPace = run.target_pace || run.planned_pace
+  
+  const displayPace = rawPace
+    ? (rawPace.toString().includes(':') || rawPace.toString().includes('/'))
+      ? rawPace
+      : `${rawPace} min/km`
     : 'N/A'
 
   const handleLogRun = async () => {
