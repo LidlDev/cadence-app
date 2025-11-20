@@ -2,7 +2,7 @@
 
 import { Run } from '@/lib/types/database'
 import { useState, useEffect } from 'react'
-import { X, Calendar, MapPin, Clock, Activity } from 'lucide-react'
+import { X, Calendar, MapPin, Clock, Activity, Zap } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 
@@ -17,6 +17,7 @@ export default function EditRunModal({ run, isOpen, onClose, onUpdate }: EditRun
   const [formData, setFormData] = useState({
     scheduled_date: run.scheduled_date,
     planned_distance: run.planned_distance?.toString() || '',
+    target_pace: run.target_pace || run.planned_pace || '',
     run_type: run.run_type,
     notes: run.notes || '',
   })
@@ -26,6 +27,7 @@ export default function EditRunModal({ run, isOpen, onClose, onUpdate }: EditRun
     setFormData({
       scheduled_date: run.scheduled_date,
       planned_distance: run.planned_distance?.toString() || '',
+      target_pace: run.target_pace || run.planned_pace || '',
       run_type: run.run_type,
       notes: run.notes || '',
     })
@@ -52,6 +54,7 @@ export default function EditRunModal({ run, isOpen, onClose, onUpdate }: EditRun
         .update({
           scheduled_date: formData.scheduled_date,
           planned_distance: parsedDistance,
+          target_pace: formData.target_pace || null,
           run_type: formData.run_type,
           notes: formData.notes || null,
         })
@@ -93,7 +96,7 @@ export default function EditRunModal({ run, isOpen, onClose, onUpdate }: EditRun
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-6 flex items-center justify-between">
+        <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-6 flex items-center justify-between z-10">
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
             Edit Run
           </h2>
@@ -141,20 +144,36 @@ export default function EditRunModal({ run, isOpen, onClose, onUpdate }: EditRun
             </select>
           </div>
 
-          {/* Distance */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              <MapPin className="w-4 h-4 inline mr-2" />
-              Planned Distance (km)
-            </label>
-            <input
-              type="number"
-              step="0.1"
-              value={formData.planned_distance}
-              onChange={(e) => setFormData({ ...formData, planned_distance: e.target.value })}
-              className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              required
-            />
+          {/* Distance & Pace Row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                <MapPin className="w-4 h-4 inline mr-2" />
+                Planned Distance (km)
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                value={formData.planned_distance}
+                onChange={(e) => setFormData({ ...formData, planned_distance: e.target.value })}
+                className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                <Zap className="w-4 h-4 inline mr-2" />
+                Target Pace
+              </label>
+              <input
+                type="text"
+                value={formData.target_pace}
+                onChange={(e) => setFormData({ ...formData, target_pace: e.target.value })}
+                className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                placeholder="e.g. 5:30"
+              />
+            </div>
           </div>
 
           {/* Notes */}
@@ -202,4 +221,3 @@ export default function EditRunModal({ run, isOpen, onClose, onUpdate }: EditRun
     </div>
   )
 }
-
