@@ -2,9 +2,18 @@
 
 import { Run } from '@/lib/types/database'
 import { format } from 'date-fns'
-import { Calendar, MapPin, Zap, MessageSquare, Trophy } from 'lucide-react'
+import { 
+  Calendar, 
+  MapPin, 
+  Zap, 
+  MessageSquare, 
+  Trophy, 
+  Activity, 
+  Flame, 
+  Mountain,
+  Timer
+} from 'lucide-react'
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 
 interface FeaturedRunCardProps {
   run: Run
@@ -14,37 +23,45 @@ interface FeaturedRunCardProps {
 export default function FeaturedRunCard({ run, onLogRun }: FeaturedRunCardProps) {
   const [isLoggingRun, setIsLoggingRun] = useState(false)
 
-  const runTypeColors = {
-    'Easy Run': 'from-easy-600 to-easy-700 dark:from-easy-500 dark:to-easy-600',
-    'Tempo Run': 'from-tempo-600 to-tempo-700 dark:from-tempo-500 dark:to-tempo-600',
-    'Quality Run': 'from-quality-600 to-quality-700 dark:from-quality-500 dark:to-quality-600',
-    'Long Run': 'from-long-600 to-long-700 dark:from-long-500 dark:to-long-600',
+  // Using your brand colors (primary-600 is #FF6F00)
+  // We create subtle variations for types, but keep them all within the Orange brand identity
+  const runTypeGradients = {
+    'Easy Run': 'from-primary-500 to-primary-600 dark:from-primary-600 dark:to-primary-700',
+    'Tempo Run': 'from-primary-600 to-primary-700 dark:from-primary-700 dark:to-primary-800',
+    'Quality Run': 'from-primary-700 to-primary-900 dark:from-primary-800 dark:to-primary-950',
+    'Long Run': 'from-primary-600 via-primary-700 to-primary-800 dark:from-primary-700 dark:via-primary-800 dark:to-primary-900',
   }
 
-  const runTypeIcons = {
-    'Easy Run': '🏃',
-    'Tempo Run': '⚡',
-    'Quality Run': '🔥',
-    'Long Run': '🎯',
+  // Map run types to Lucide Icons
+  const getRunIcon = (type: string) => {
+    switch (type) {
+      case 'Tempo Run':
+        return <Zap className="w-8 h-8" />
+      case 'Quality Run':
+        return <Flame className="w-8 h-8" />
+      case 'Long Run':
+        return <Mountain className="w-8 h-8" />
+      case 'Easy Run':
+      default:
+        return <Activity className="w-8 h-8" />
+    }
   }
 
-  const gradient = runTypeColors[run.run_type as keyof typeof runTypeColors] || 'from-primary-600 to-primary-700 dark:from-primary-500 dark:to-primary-600'
-  const icon = runTypeIcons[run.run_type as keyof typeof runTypeIcons] || '🏃‍♂️'
+  const gradient = runTypeGradients[run.run_type as keyof typeof runTypeGradients] || 'from-primary-600 to-primary-700'
+  const icon = getRunIcon(run.run_type)
 
-  // Parse pace - handle both "min/km" format and plain numbers
-  // Prioritize target_pace from CSV/DB, fall back to planned_pace
+  // Prioritize target_pace from DB (e.g., "6:35"), fallback to planned_pace
   const rawPace = run.target_pace || run.planned_pace
   
   const displayPace = rawPace
     ? (rawPace.toString().includes(':') || rawPace.toString().includes('/'))
-      ? rawPace
-      : `${rawPace} min/km`
+      ? rawPace // If it already has format (e.g. 6:35)
+      : `${rawPace} min/km` // If it's just a number
     : 'N/A'
 
   const handleLogRun = async () => {
     setIsLoggingRun(true)
 
-    // Scroll to the run card to trigger the log run form
     const runCards = document.querySelectorAll('[data-run-id]')
     const targetCard = Array.from(runCards).find(
       card => card.getAttribute('data-run-id') === run.id
@@ -52,7 +69,6 @@ export default function FeaturedRunCard({ run, onLogRun }: FeaturedRunCardProps)
 
     if (targetCard) {
       targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      // Trigger click on the log run button
       const logButton = targetCard.querySelector('button[aria-label="Log this run"]') as HTMLButtonElement
       if (logButton) {
         setTimeout(() => {
@@ -69,7 +85,7 @@ export default function FeaturedRunCard({ run, onLogRun }: FeaturedRunCardProps)
 
   return (
     <div className="relative overflow-hidden rounded-2xl shadow-2xl">
-      {/* Gradient Background */}
+      {/* Brand Orange Gradient Background */}
       <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`} />
 
       {/* Content */}
@@ -77,56 +93,58 @@ export default function FeaturedRunCard({ run, onLogRun }: FeaturedRunCardProps)
         {/* Header */}
         <div className="flex items-start justify-between mb-6">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-4xl">{icon}</span>
-              <h2 className="text-3xl font-bold drop-shadow-lg">{run.run_type}</h2>
+            <div className="flex items-center gap-3 mb-2">
+              <span className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                {icon}
+              </span>
+              <h2 className="text-3xl font-bold drop-shadow-sm">{run.run_type}</h2>
             </div>
-            <p className="text-white/90 text-lg drop-shadow">
+            <p className="text-white/90 text-lg font-medium drop-shadow-sm">
               Week {run.week_number} • {run.day_of_week}
             </p>
           </div>
-          <div className="bg-white/30 dark:bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg">
-            <p className="text-sm font-medium drop-shadow">Next Up</p>
+          <div className="bg-white/25 backdrop-blur-md px-4 py-2 rounded-full border border-white/20">
+            <p className="text-sm font-bold tracking-wide uppercase drop-shadow-sm">Next Up</p>
           </div>
         </div>
 
         {/* Date */}
-        <div className="flex items-center gap-2 mb-6 text-lg">
-          <Calendar className="w-5 h-5 drop-shadow" />
-          <span className="font-semibold drop-shadow">
+        <div className="flex items-center gap-2 mb-8 text-lg bg-black/10 w-fit px-4 py-2 rounded-lg backdrop-blur-sm">
+          <Calendar className="w-5 h-5" />
+          <span className="font-medium">
             {format(new Date(run.scheduled_date + 'T00:00:00'), 'EEEE, MMMM d, yyyy')}
           </span>
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="bg-white/20 dark:bg-white/10 backdrop-blur-sm rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <MapPin className="w-5 h-5 drop-shadow" />
-              <p className="text-sm font-medium drop-shadow">Distance</p>
+        <div className="grid grid-cols-2 gap-4 mb-8">
+          <div className="bg-white/20 dark:bg-black/20 backdrop-blur-md rounded-xl p-5 border border-white/10">
+            <div className="flex items-center gap-2 mb-1 text-white/90">
+              <MapPin className="w-4 h-4" />
+              <p className="text-xs font-bold uppercase tracking-wider">Distance</p>
             </div>
-            <p className="text-3xl font-bold drop-shadow-lg">
+            <p className="text-3xl font-extrabold tracking-tight">
               {run.planned_distance ? `${run.planned_distance} km` : 'Varies'}
             </p>
           </div>
 
-          <div className="bg-white/20 dark:bg-white/10 backdrop-blur-sm rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Zap className="w-5 h-5 drop-shadow" />
-              <p className="text-sm font-medium drop-shadow">Target Pace</p>
+          <div className="bg-white/20 dark:bg-black/20 backdrop-blur-md rounded-xl p-5 border border-white/10">
+            <div className="flex items-center gap-2 mb-1 text-white/90">
+              <Timer className="w-4 h-4" />
+              <p className="text-xs font-bold uppercase tracking-wider">Target Pace</p>
             </div>
-            <p className="text-3xl font-bold drop-shadow-lg">{displayPace}</p>
+            <p className="text-3xl font-extrabold tracking-tight">{displayPace}</p>
           </div>
         </div>
 
         {/* Notes */}
         {run.notes && (
-          <div className="bg-white/20 dark:bg-white/10 backdrop-blur-sm rounded-xl p-4 mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <MessageSquare className="w-5 h-5 drop-shadow" />
-              <p className="text-sm font-medium drop-shadow">Notes</p>
+          <div className="bg-white/10 dark:bg-black/20 backdrop-blur-sm rounded-xl p-4 mb-6 border border-white/5">
+            <div className="flex items-center gap-2 mb-2 text-white/90">
+              <MessageSquare className="w-4 h-4" />
+              <p className="text-xs font-bold uppercase tracking-wider">Coach's Notes</p>
             </div>
-            <p className="drop-shadow">{run.notes}</p>
+            <p className="text-white/95 leading-relaxed">{run.notes}</p>
           </div>
         )}
 
@@ -135,7 +153,7 @@ export default function FeaturedRunCard({ run, onLogRun }: FeaturedRunCardProps)
           <button
             onClick={handleLogRun}
             disabled={isLoggingRun}
-            className="w-full bg-white text-slate-900 hover:bg-white/90 disabled:bg-white/70 px-6 py-3 rounded-xl font-bold text-lg transition-colors flex items-center justify-center gap-2 shadow-lg"
+            className="w-full bg-white text-primary-700 hover:bg-gray-50 disabled:bg-white/70 px-6 py-4 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
           >
             <Trophy className="w-5 h-5" />
             {isLoggingRun ? 'Opening...' : 'Log This Run'}
@@ -143,10 +161,9 @@ export default function FeaturedRunCard({ run, onLogRun }: FeaturedRunCardProps)
         </div>
       </div>
 
-      {/* Decorative Elements */}
-      <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 dark:bg-white/5 rounded-full -translate-y-32 translate-x-32" />
-      <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 dark:bg-white/5 rounded-full translate-y-24 -translate-x-24" />
+      {/* Decorative Circles - Adjusted for orange theme */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full -translate-y-32 translate-x-32 blur-3xl" />
+      <div className="absolute bottom-0 left-0 w-64 h-64 bg-black/10 rounded-full translate-y-24 -translate-x-24 blur-2xl" />
     </div>
   )
 }
-
