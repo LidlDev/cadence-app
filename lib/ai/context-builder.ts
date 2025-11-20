@@ -4,7 +4,7 @@ import { SupabaseClient } from '@supabase/supabase-js'
  * Builds context for AI chat from user's training data
  */
 export async function buildUserContext(supabase: SupabaseClient, userId: string) {
-  // Fetch recent runs (last 30 days)
+  // Fetch recent completed runs (last 30 days based on when they were updated/completed)
   const thirtyDaysAgo = new Date()
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
@@ -12,8 +12,9 @@ export async function buildUserContext(supabase: SupabaseClient, userId: string)
     .from('runs')
     .select('*')
     .eq('user_id', userId)
-    .gte('scheduled_date', thirtyDaysAgo.toISOString())
-    .order('scheduled_date', { ascending: false })
+    .eq('completed', true)
+    .gte('updated_at', thirtyDaysAgo.toISOString())
+    .order('updated_at', { ascending: false })
     .limit(20)
 
   // Fetch personal bests
@@ -40,8 +41,18 @@ export async function buildUserContext(supabase: SupabaseClient, userId: string)
     .order('last_accessed', { ascending: false })
     .limit(10)
 
+  // Fetch upcoming runs for context
+  const { data: upcomingRuns } = await supabase
+    .from('runs')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('completed', false)
+    .gte('scheduled_date', new Date().toISOString().split('T')[0])
+    .order('scheduled_date', { ascending: true })
+    .limit(10)
+
   // Calculate training stats
-  const completedRuns = recentRuns?.filter((r) => r.completed) || []
+  const completedRuns = recentRuns || []
   const totalDistance = completedRuns.reduce((sum, r) => sum + (r.actual_distance || 0), 0)
   const avgRPE = completedRuns.length > 0
     ? completedRuns.reduce((sum, r) => sum + (r.rpe || 0), 0) / completedRuns.length
@@ -53,7 +64,7 @@ export async function buildUserContext(supabase: SupabaseClient, userId: string)
       totalRecentRuns: completedRuns.length,
       totalDistance: totalDistance.toFixed(1),
       avgRPE: avgRPE.toFixed(1),
-      upcomingRuns: recentRuns?.filter((r) => !r.completed).length || 0,
+      upcomingRuns: upcomingRuns?.length || 0,
     },
     recentRuns: completedRuns.slice(0, 10).map((run) => ({
       date: run.scheduled_date,

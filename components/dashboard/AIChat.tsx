@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Send, Bot, User, Loader2 } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -35,10 +37,6 @@ export default function AIChat() {
     setInput('')
     setLoading(true)
 
-    // Add placeholder for assistant message
-    const assistantMessageIndex = messages.length + 1
-    setMessages((prev) => [...prev, { role: 'assistant', content: '' }])
-
     try {
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
@@ -56,6 +54,7 @@ export default function AIChat() {
       const reader = response.body?.getReader()
       const decoder = new TextDecoder()
       let fullContent = ''
+      let assistantMessageAdded = false
 
       if (reader) {
         while (true) {
@@ -75,15 +74,22 @@ export default function AIChat() {
                 const parsed = JSON.parse(data)
                 if (parsed.content) {
                   fullContent += parsed.content
-                  // Update the assistant message in real-time
-                  setMessages((prev) => {
-                    const newMessages = [...prev]
-                    newMessages[assistantMessageIndex] = {
-                      role: 'assistant',
-                      content: fullContent,
-                    }
-                    return newMessages
-                  })
+
+                  // Add assistant message on first content chunk
+                  if (!assistantMessageAdded) {
+                    setMessages((prev) => [...prev, { role: 'assistant', content: fullContent }])
+                    assistantMessageAdded = true
+                  } else {
+                    // Update the last message (assistant) in real-time
+                    setMessages((prev) => {
+                      const newMessages = [...prev]
+                      newMessages[newMessages.length - 1] = {
+                        role: 'assistant',
+                        content: fullContent,
+                      }
+                      return newMessages
+                    })
+                  }
                 }
               } catch (e) {
                 // Skip invalid JSON
@@ -98,14 +104,13 @@ export default function AIChat() {
       }
     } catch (error) {
       console.error('Error sending message:', error)
-      setMessages((prev) => {
-        const newMessages = [...prev]
-        newMessages[assistantMessageIndex] = {
+      setMessages((prev) => [
+        ...prev,
+        {
           role: 'assistant',
           content: 'Sorry, I encountered an error. Please try again.',
-        }
-        return newMessages
-      })
+        },
+      ])
     } finally {
       setLoading(false)
     }
@@ -158,7 +163,15 @@ export default function AIChat() {
                   : 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white'
               }`}
             >
-              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+              {message.role === 'assistant' ? (
+                <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {message.content}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+              )}
             </div>
             {message.role === 'user' && (
               <div className="flex-shrink-0 w-8 h-8 bg-slate-200 dark:bg-slate-600 rounded-full flex items-center justify-center">
