@@ -23,31 +23,21 @@ interface FeaturedRunCardProps {
 export default function FeaturedRunCard({ run, onLogRun }: FeaturedRunCardProps) {
   const [isLoggingRun, setIsLoggingRun] = useState(false)
 
-  // Using your brand colors (primary-600 is #FF6F00)
-  // We create subtle variations for types, but keep them all within the Orange brand identity
-  const runTypeGradients = {
-    'Easy Run': 'from-primary-500 to-primary-600 dark:from-primary-600 dark:to-primary-700',
-    'Tempo Run': 'from-primary-600 to-primary-700 dark:from-primary-700 dark:to-primary-800',
-    'Quality Run': 'from-primary-700 to-primary-900 dark:from-primary-800 dark:to-primary-950',
-    'Long Run': 'from-primary-600 via-primary-700 to-primary-800 dark:from-primary-700 dark:via-primary-800 dark:to-primary-900',
-  }
-
   // Map run types to Lucide Icons
   const getRunIcon = (type: string) => {
     switch (type) {
       case 'Tempo Run':
-        return <Zap className="w-8 h-8" />
+        return <Zap className="w-6 h-6" />
       case 'Quality Run':
-        return <Flame className="w-8 h-8" />
+        return <Flame className="w-6 h-6" />
       case 'Long Run':
-        return <Mountain className="w-8 h-8" />
+        return <Mountain className="w-6 h-6" />
       case 'Easy Run':
       default:
-        return <Activity className="w-8 h-8" />
+        return <Activity className="w-6 h-6" />
     }
   }
 
-  const gradient = runTypeGradients[run.run_type as keyof typeof runTypeGradients] || 'from-primary-600 to-primary-700'
   const icon = getRunIcon(run.run_type)
 
   // Prioritize target_pace from DB (e.g., "6:35"), fallback to planned_pace
@@ -55,8 +45,8 @@ export default function FeaturedRunCard({ run, onLogRun }: FeaturedRunCardProps)
   
   const displayPace = rawPace
     ? (rawPace.toString().includes(':') || rawPace.toString().includes('/'))
-      ? rawPace // If it already has format (e.g. 6:35)
-      : `${rawPace} min/km` // If it's just a number
+      ?qp rawPace
+      : `${rawPace} min/km`
     : 'N/A'
 
   const handleLogRun = async () => {
@@ -84,86 +74,88 @@ export default function FeaturedRunCard({ run, onLogRun }: FeaturedRunCardProps)
   }
 
   return (
-    <div className="relative overflow-hidden rounded-2xl shadow-2xl">
-      {/* Brand Orange Gradient Background */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`} />
+    <div className="relative overflow-hidden rounded-2xl shadow-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
+      {/* Top Primary Accent Line */}
+      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary-500 to-primary-600" />
+      
+      {/* Subtle Background Glow - reduced opacity for elegance */}
+      <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary-500/5 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Content */}
-      <div className="relative p-8 text-white">
+      <div className="relative p-8">
         {/* Header */}
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <span className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                {icon}
-              </span>
-              <h2 className="text-3xl font-bold drop-shadow-sm">{run.run_type}</h2>
+        <div className="flex items-start justify-between mb-8">
+          <div className="flex gap-4">
+            {/* Icon Box with Theme Accent */}
+            <div className="p-3 bg-primary-50 dark:bg-primary-900/20 rounded-2xl text-primary-600 dark:text-primary-500 shadow-sm border border-primary-100 dark:border-primary-900/30 flex items-center justify-center h-fit">
+              {icon}
             </div>
-            <p className="text-white/90 text-lg font-medium drop-shadow-sm">
-              Week {run.week_number} • {run.day_of_week}
-            </p>
+            <div>
+              <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{run.run_type}</h2>
+              <div className="flex items-center gap-2 mt-1 text-slate-500 dark:text-slate-400 font-medium">
+                <span>Week {run.week_number}</span>
+                <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600" />
+                <span>{run.day_of_week}</span>
+              </div>
+            </div>
           </div>
-          <div className="bg-white/25 backdrop-blur-md px-4 py-2 rounded-full border border-white/20">
-            <p className="text-sm font-bold tracking-wide uppercase drop-shadow-sm">Next Up</p>
+          
+          {/* Next Up Badge - clean/neutral */}
+          <div className="px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+            <p className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Next Up</p>
           </div>
         </div>
 
         {/* Date */}
-        <div className="flex items-center gap-2 mb-8 text-lg bg-black/10 w-fit px-4 py-2 rounded-lg backdrop-blur-sm">
-          <Calendar className="w-5 h-5" />
-          <span className="font-medium">
+        <div className="flex items-center gap-2.5 mb-8 text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 w-fit px-4 py-2 rounded-full border border-slate-100 dark:border-slate-800">
+          <Calendar className="w-4 h-4 text-primary-500" />
+          <span className="font-medium text-sm">
             {format(new Date(run.scheduled_date + 'T00:00:00'), 'EEEE, MMMM d, yyyy')}
           </span>
         </div>
 
-        {/* Stats Grid */}
+        {/* Stats Grid - Clean neutral background with distinct data */}
         <div className="grid grid-cols-2 gap-4 mb-8">
-          <div className="bg-white/20 dark:bg-black/20 backdrop-blur-md rounded-xl p-5 border border-white/10">
-            <div className="flex items-center gap-2 mb-1 text-white/90">
+          <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-2 mb-2 text-slate-500 dark:text-slate-400">
               <MapPin className="w-4 h-4" />
               <p className="text-xs font-bold uppercase tracking-wider">Distance</p>
             </div>
-            <p className="text-3xl font-extrabold tracking-tight">
-              {run.planned_distance ? `${run.planned_distance} km` : 'Varies'}
+            <p className="text-3xl font-extrabold text-slate-900 dark:text-white">
+              {run.planned_distance ? `${run.planned_distance}` : 'Varies'} 
+              <span className="text-lg font-medium text-slate-500 dark:text-slate-400 ml-1">km</span>
             </p>
           </div>
 
-          <div className="bg-white/20 dark:bg-black/20 backdrop-blur-md rounded-xl p-5 border border-white/10">
-            <div className="flex items-center gap-2 mb-1 text-white/90">
+          <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-2 mb-2 text-slate-500 dark:text-slate-400">
               <Timer className="w-4 h-4" />
               <p className="text-xs font-bold uppercase tracking-wider">Target Pace</p>
             </div>
-            <p className="text-3xl font-extrabold tracking-tight">{displayPace}</p>
+            <p className="text-3xl font-extrabold text-slate-900 dark:text-white">{displayPace}</p>
           </div>
         </div>
 
         {/* Notes */}
         {run.notes && (
-          <div className="bg-white/10 dark:bg-black/20 backdrop-blur-sm rounded-xl p-4 mb-6 border border-white/5">
-            <div className="flex items-center gap-2 mb-2 text-white/90">
+          <div className="mb-8 p-4 rounded-xl bg-primary-50/50 dark:bg-slate-800/50 border border-primary-100 dark:border-slate-700/50">
+            <div className="flex items-center gap-2 mb-2 text-primary-700 dark:text-primary-400">
               <MessageSquare className="w-4 h-4" />
-              <p className="text-xs font-bold uppercase tracking-wider">Coach's Notes</p>
+              <p className="text-xs font-bold uppercase tracking-wider">Notes</p>
             </div>
-            <p className="text-white/95 leading-relaxed">{run.notes}</p>
+            <p className="text-slate-700 dark:text-slate-300 leading-relaxed text-sm">{run.notes}</p>
           </div>
         )}
 
-        {/* Action Button */}
-        <div className="mt-6">
-          <button
-            onClick={handleLogRun}
-            disabled={isLoggingRun}
-            className="w-full bg-white text-primary-700 hover:bg-gray-50 disabled:bg-white/70 px-6 py-4 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-          >
-            <Trophy className="w-5 h-5" />
-            {isLoggingRun ? 'Opening...' : 'Log This Run'}
-          </button>
-        </div>
+        {/* Action Button - The main "Pop" of color */}
+        <button
+          onClick={handleLogRun}
+          disabled={isLoggingRun}
+          className="w-full bg-primary-600 hover:bg-primary-700 text-white px-6 py-4 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary-600/20 hover:shadow-primary-600/30 transform active:scale-[0.99]"
+        >
+          <Trophy className="w-5 h-5" />
+          {isLoggingRun ? 'Opening...' : 'Log This Run'}
+        </button>
       </div>
-
-      {/* Decorative Circles - Adjusted for orange theme */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full -translate-y-32 translate-x-32 blur-3xl" />
-      <div className="absolute bottom-0 left-0 w-64 h-64 bg-black/10 rounded-full translate-y-24 -translate-x-24 blur-2xl" />
     </div>
   )
 }
