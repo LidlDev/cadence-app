@@ -67,6 +67,43 @@ export interface Run {
   strava_activity_id: number | null
   created_at: string
   updated_at: string
+
+  // Strava-synced fields
+  average_hr: number | null
+  max_hr: number | null
+  elevation_gain: number | null
+  elevation_loss: number | null
+  average_cadence: number | null
+  max_cadence: number | null
+  average_watts: number | null
+  max_watts: number | null
+  calories: number | null
+  average_temp: number | null
+  suffer_score: number | null
+  moving_time: number | null
+  elapsed_time: number | null
+  achievement_count: number | null
+  pr_count: number | null
+  kudos_count: number | null
+  comment_count: number | null
+  perceived_exertion: number | null
+  device_name: string | null
+  gear_id: string | null
+  average_speed: number | null
+  max_speed: number | null
+
+  // Stream availability flags
+  has_heartrate: boolean | null
+  has_cadence: boolean | null
+  has_power: boolean | null
+  has_gps: boolean | null
+  has_time_stream: boolean | null
+  has_distance_stream: boolean | null
+  has_latlng_stream: boolean | null
+  has_altitude_stream: boolean | null
+  has_velocity_stream: boolean | null
+  has_grade_stream: boolean | null
+  has_temp_stream: boolean | null
 }
 
 export interface StrengthSession {
