@@ -1,24 +1,27 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Bot, User, Loader2 } from 'lucide-react'
+import { Send, Bot, User, Loader2, Wand2, MessageSquare } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  modifications_made?: boolean
+  function_calls?: string[]
 }
 
 export default function AIChat() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: "Hi! I'm your running coach assistant. I can help you with training advice, analyze your performance, and answer questions about your running plan. What would you like to know?",
+      content: "Hi! I'm your running coach assistant. I can help you with training advice, analyze your performance, and answer questions about your running plan.\n\n💡 **Tip**: Enable **Agentic Mode** to let me modify your training plan based on your requests! I can move runs, change distances, add weeks, and more.",
     },
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [agenticMode, setAgenticMode] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
@@ -38,69 +41,86 @@ export default function AIChat() {
     setLoading(true)
 
     try {
-      const response = await fetch('/api/ai/chat', {
+      // Use agentic endpoint if agentic mode is enabled
+      const endpoint = agenticMode ? '/api/ai/chat-agentic' : '/api/ai/chat'
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, userMessage],
+          enableTools: agenticMode,
         }),
       })
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorData = await response.json()
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
       }
 
-      // Handle streaming response
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
-      let fullContent = ''
-      let assistantMessageAdded = false
+      // Handle agentic response (JSON) vs streaming response
+      if (agenticMode) {
+        const data = await response.json()
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: data.message,
+          modifications_made: data.modifications_made,
+          function_calls: data.function_calls,
+        }
+        setMessages((prev) => [...prev, assistantMessage])
+      } else {
+        // Handle streaming response
+        const reader = response.body?.getReader()
+        const decoder = new TextDecoder()
+        let fullContent = ''
+        let assistantMessageAdded = false
 
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
 
-          const chunk = decoder.decode(value)
-          const lines = chunk.split('\n')
+            const chunk = decoder.decode(value)
+            const lines = chunk.split('\n')
 
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6)
-              if (data === '[DONE]') {
-                break
-              }
-              try {
-                const parsed = JSON.parse(data)
-                if (parsed.content) {
-                  fullContent += parsed.content
-
-                  // Add assistant message on first content chunk
-                  if (!assistantMessageAdded) {
-                    setMessages((prev) => [...prev, { role: 'assistant', content: fullContent }])
-                    assistantMessageAdded = true
-                  } else {
-                    // Update the last message (assistant) in real-time
-                    setMessages((prev) => {
-                      const newMessages = [...prev]
-                      newMessages[newMessages.length - 1] = {
-                        role: 'assistant',
-                        content: fullContent,
-                      }
-                      return newMessages
-                    })
-                  }
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6)
+                if (data === '[DONE]') {
+                  break
                 }
-              } catch (e) {
-                // Skip invalid JSON
+                try {
+                  const parsed = JSON.parse(data)
+                  if (parsed.content) {
+                    fullContent += parsed.content
+
+                    // Add assistant message on first content chunk
+                    if (!assistantMessageAdded) {
+                      setMessages((prev) => [...prev, { role: 'assistant', content: fullContent }])
+                      assistantMessageAdded = true
+                    } else {
+                      // Update the last message (assistant) in real-time
+                      setMessages((prev) => {
+                        const newMessages = [...prev]
+                        newMessages[newMessages.length - 1] = {
+                          role: 'assistant',
+                          content: fullContent,
+                        }
+                        return newMessages
+                      })
+                    }
+                  }
+                } catch (e) {
+                  // Skip invalid JSON
+                }
               }
             }
           }
         }
-      }
 
-      if (!fullContent) {
-        throw new Error('No content received from AI')
+        if (!fullContent) {
+          throw new Error('No content received from AI')
+        }
       }
     } catch (error) {
       console.error('Error sending message:', error)
@@ -116,7 +136,7 @@ export default function AIChat() {
     }
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
@@ -127,18 +147,43 @@ export default function AIChat() {
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg flex flex-col h-[600px]">
       {/* Header */}
       <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg">
-            <Bot className="w-5 h-5 text-primary-600" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg">
+              <Bot className="w-5 h-5 text-primary-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900 dark:text-white">
+                AI Running Coach
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                Powered by GPT-4
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-bold text-slate-900 dark:text-white">
-              AI Running Coach
-            </h3>
-            <p className="text-xs text-slate-600 dark:text-slate-400">
-              Powered by GPT-4
-            </p>
-          </div>
+
+          {/* Agentic Mode Toggle */}
+          <button
+            onClick={() => setAgenticMode(!agenticMode)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+              agenticMode
+                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
+                : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
+            }`}
+            title={agenticMode ? 'Agentic Mode: AI can modify your training plan' : 'Advice Mode: AI provides guidance only'}
+          >
+            {agenticMode ? (
+              <>
+                <Wand2 className="w-4 h-4" />
+                <span>Agentic</span>
+              </>
+            ) : (
+              <>
+                <MessageSquare className="w-4 h-4" />
+                <span>Advice</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
@@ -156,22 +201,41 @@ export default function AIChat() {
                 <Bot className="w-4 h-4 text-primary-600" />
               </div>
             )}
-            <div
-              className={`max-w-[80%] rounded-lg p-3 ${
-                message.role === 'user'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white'
-              }`}
-            >
-              {message.role === 'assistant' ? (
-                <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {message.content}
-                  </ReactMarkdown>
-                </div>
-              ) : (
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-              )}
+            <div className="flex flex-col gap-2 max-w-[80%]">
+              <div
+                className={`rounded-lg p-3 ${
+                  message.role === 'user'
+                    ? 'bg-primary-600 text-white'
+                    : message.modifications_made
+                    ? 'bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border-2 border-purple-300 dark:border-purple-700 text-slate-900 dark:text-white'
+                    : 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white'
+                }`}
+              >
+                {message.role === 'assistant' ? (
+                  <>
+                    {message.modifications_made && (
+                      <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-purple-700 dark:text-purple-300">
+                        <Wand2 className="w-3 h-3" />
+                        <span>Training Plan Modified</span>
+                      </div>
+                    )}
+                    <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {message.content}
+                      </ReactMarkdown>
+                    </div>
+                    {message.function_calls && message.function_calls.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-purple-200 dark:border-purple-700">
+                        <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                          Actions performed: {message.function_calls.join(', ')}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                )}
+              </div>
             </div>
             {message.role === 'user' && (
               <div className="flex-shrink-0 w-8 h-8 bg-slate-200 dark:bg-slate-600 rounded-full flex items-center justify-center">
@@ -199,7 +263,7 @@ export default function AIChat() {
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyDown}
             placeholder="Ask about your training, performance, or get advice..."
             rows={2}
             className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-600"
