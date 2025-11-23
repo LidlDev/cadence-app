@@ -1,4 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js'
+import { calculateTSS, calculateCTL, calculateATL, calculateTSB, getFormStatus } from './training-load'
+import { generateInsights } from './insights-analyzer'
 
 /**
  * Builds context for AI chat from user's training data
@@ -17,7 +19,16 @@ export async function buildUserContext(supabase: SupabaseClient, userId: string)
 
   const { data: recentRuns } = await supabase
     .from('runs')
-    .select('*')
+    .select(`
+      *,
+      suffer_score,
+      achievement_count,
+      pr_count,
+      kudos_count,
+      elevation_gain,
+      average_cadence,
+      calories
+    `)
     .eq('user_id', userId)
     .eq('completed', true)
     .gte('updated_at', thirtyDaysAgo.toISOString())
@@ -85,6 +96,57 @@ export async function buildUserContext(supabase: SupabaseClient, userId: string)
     return acc
   }, { zone1: 0, zone2: 0, zone3: 0, zone4: 0, zone5: 0, totalTime: 0 }) || null
 
+  // Calculate training load metrics (CTL/ATL/TSB)
+  const dailyTSS = new Map<string, number>()
+
+  // Fetch runs from last 60 days for accurate CTL calculation
+  const sixtyDaysAgo = new Date()
+  sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+
+  const { data: allRecentRuns } = await supabase
+    .from('runs')
+    .select('scheduled_date, actual_distance, actual_time, rpe, run_type, average_hr, max_hr')
+    .eq('user_id', userId)
+    .eq('completed', true)
+    .gte('scheduled_date', sixtyDaysAgo.toISOString().split('T')[0])
+    .order('scheduled_date', { ascending: true })
+
+  // Calculate TSS for each run and aggregate by day
+  if (allRecentRuns) {
+    const userMaxHR = profile?.max_heart_rate || undefined
+    allRecentRuns.forEach((run) => {
+      const tss = calculateTSS(run, userMaxHR)
+      const date = run.scheduled_date
+      dailyTSS.set(date, (dailyTSS.get(date) || 0) + tss)
+    })
+  }
+
+  // Calculate current fitness metrics
+  const today = new Date()
+  const ctl = calculateCTL(dailyTSS, today)
+  const atl = calculateATL(dailyTSS, today)
+  const tsb = calculateTSB(ctl, atl)
+  const formStatus = getFormStatus(tsb)
+
+  // Calculate 7-day and 30-day training load
+  const sevenDaysAgo = new Date()
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+  let weeklyLoad = 0
+  let monthlyLoad = 0
+
+  dailyTSS.forEach((tss, dateStr) => {
+    const date = new Date(dateStr)
+    if (date >= sevenDaysAgo) {
+      weeklyLoad += tss
+    }
+    if (date >= thirtyDaysAgo) {
+      monthlyLoad += tss
+    }
+  })
+
+  // Generate proactive insights
+  const insights = await generateInsights(supabase, userId, tsb, ctl, atl)
+
   // Build context string
   const context = {
     profile: profile ? {
@@ -110,6 +172,15 @@ export async function buildUserContext(supabase: SupabaseClient, userId: string)
       avgRPE: avgRPE.toFixed(1),
       upcomingRuns: upcomingRuns?.length || 0,
     },
+    trainingLoad: {
+      ctl: ctl.toFixed(1),
+      atl: atl.toFixed(1),
+      tsb: tsb.toFixed(1),
+      formStatus: formStatus.status,
+      formDescription: formStatus.description,
+      weeklyLoad: weeklyLoad.toFixed(1),
+      monthlyLoad: monthlyLoad.toFixed(1),
+    },
     hrZoneDistribution: hrZoneStats && hrZoneStats.totalTime > 0 ? {
       zone1_percent: ((hrZoneStats.zone1 / hrZoneStats.totalTime) * 100).toFixed(1),
       zone2_percent: ((hrZoneStats.zone2 / hrZoneStats.totalTime) * 100).toFixed(1),
@@ -128,6 +199,13 @@ export async function buildUserContext(supabase: SupabaseClient, userId: string)
         comments: run.comments,
         avg_hr: runHRZones?.average_hr,
         max_hr: runHRZones?.max_hr,
+        suffer_score: run.suffer_score,
+        elevation_gain: run.elevation_gain,
+        average_cadence: run.average_cadence,
+        calories: run.calories,
+        achievement_count: run.achievement_count,
+        pr_count: run.pr_count,
+        kudos_count: run.kudos_count,
       }
     }),
     personalBests: personalBests?.map((pb) => ({
@@ -147,6 +225,7 @@ export async function buildUserContext(supabase: SupabaseClient, userId: string)
       content: mem.content,
       importance: mem.importance,
     })) || [],
+    insights: insights,
   }
 
   return context
@@ -156,7 +235,7 @@ export async function buildUserContext(supabase: SupabaseClient, userId: string)
  * Formats context into a system message for the AI
  */
 export function formatContextForAI(context: any): string {
-  const { profile, summary, hrZoneDistribution, recentRuns, personalBests, bestPerformances, memories } = context
+  const { profile, summary, trainingLoad, hrZoneDistribution, recentRuns, personalBests, bestPerformances, memories, insights } = context
 
   let message = `You are a knowledgeable running coach assistant helping a runner with their training. Here's what you know about the user:\n\n`
 
@@ -195,6 +274,25 @@ export function formatContextForAI(context: any): string {
   message += `- Average RPE: ${summary.avgRPE}/10\n`
   message += `- Upcoming Runs: ${summary.upcomingRuns}\n`
 
+  // Training Load Metrics
+  if (trainingLoad) {
+    message += `\n### Training Load & Fitness Metrics\n`
+    message += `- **CTL (Chronic Training Load)**: ${trainingLoad.ctl} - Long-term fitness\n`
+    message += `- **ATL (Acute Training Load)**: ${trainingLoad.atl} - Short-term fatigue\n`
+    message += `- **TSB (Training Stress Balance)**: ${trainingLoad.tsb}\n`
+    message += `- **Current Form**: ${trainingLoad.formStatus} - ${trainingLoad.formDescription}\n`
+    message += `- **7-Day Training Load**: ${trainingLoad.weeklyLoad} TSS\n`
+    message += `- **30-Day Training Load**: ${trainingLoad.monthlyLoad} TSS\n`
+    message += `\n`
+    message += `**Interpretation Guide:**\n`
+    message += `- CTL represents fitness built over 6 weeks\n`
+    message += `- ATL represents fatigue from the last week\n`
+    message += `- TSB = CTL - ATL (positive = fresh, negative = fatigued)\n`
+    message += `- TSB > 10: Fresh, good for racing\n`
+    message += `- TSB -10 to 10: Normal training state\n`
+    message += `- TSB < -30: High overtraining risk\n`
+  }
+
   // HR zone distribution
   if (hrZoneDistribution) {
     message += `\n### Heart Rate Zone Distribution\n`
@@ -213,6 +311,21 @@ export function formatContextForAI(context: any): string {
       message += `- ${run.date}: ${run.type}, ${run.distance}km at ${run.pace || 'N/A'} pace, RPE ${run.rpe}/10`
       if (run.avg_hr) message += `, Avg HR ${run.avg_hr} bpm`
       if (run.max_hr) message += ` (Max ${run.max_hr} bpm)`
+
+      // Strava metrics
+      const stravaMetrics = []
+      if (run.suffer_score) stravaMetrics.push(`Suffer Score: ${run.suffer_score}`)
+      if (run.elevation_gain) stravaMetrics.push(`Elevation: ${run.elevation_gain}m`)
+      if (run.average_cadence) stravaMetrics.push(`Cadence: ${run.average_cadence} spm`)
+      if (run.calories) stravaMetrics.push(`Calories: ${run.calories}`)
+      if (run.pr_count && run.pr_count > 0) stravaMetrics.push(`🏆 ${run.pr_count} PR${run.pr_count > 1 ? 's' : ''}`)
+      if (run.achievement_count && run.achievement_count > 0) stravaMetrics.push(`🎖️ ${run.achievement_count} achievement${run.achievement_count > 1 ? 's' : ''}`)
+      if (run.kudos_count && run.kudos_count > 0) stravaMetrics.push(`👍 ${run.kudos_count} kudos`)
+
+      if (stravaMetrics.length > 0) {
+        message += ` [${stravaMetrics.join(', ')}]`
+      }
+
       if (run.comments) message += ` - "${run.comments}"`
       message += `\n`
     })
@@ -256,7 +369,31 @@ export function formatContextForAI(context: any): string {
     message += `\n`
   }
 
-  message += `Provide helpful, personalized advice based on this information. Be encouraging and specific.`
+  // Proactive Insights
+  if (insights && insights.length > 0) {
+    message += `## 🔍 Proactive Training Insights\n`
+    message += `Based on analysis of your recent training, here are important insights:\n\n`
+
+    // Sort by priority
+    const sortedInsights = [...insights].sort((a, b) => {
+      const priorityOrder = { high: 0, medium: 1, low: 2 }
+      return priorityOrder[a.priority] - priorityOrder[b.priority]
+    })
+
+    sortedInsights.forEach((insight: any, index: number) => {
+      const emoji = insight.type === 'danger' ? '🚨' :
+                    insight.type === 'warning' ? '⚠️' :
+                    insight.type === 'success' ? '✅' : 'ℹ️'
+
+      message += `${index + 1}. ${emoji} **${insight.title}** [${insight.priority.toUpperCase()} PRIORITY]\n`
+      message += `   ${insight.description}\n`
+      message += `   💡 Recommendation: ${insight.recommendation}\n\n`
+    })
+  }
+
+  message += `\n**Your Role**: Provide helpful, personalized advice based on this information. Be encouraging and specific. `
+  message += `If there are high-priority insights, address them proactively in your response. `
+  message += `Use the training load metrics to guide your recommendations about workout intensity and recovery.`
 
   return message
 }
