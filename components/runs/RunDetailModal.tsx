@@ -434,7 +434,7 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
                           <stop offset="95%" stopColor="#ef4444" stopOpacity={0.05}/>
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" dark:stroke="#475569" opacity={0.3} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" opacity={0.3} />
                       <XAxis
                         dataKey="time"
                         label={{ value: 'Time (min)', position: 'insideBottom', offset: -5, fill: '#64748b' }}
