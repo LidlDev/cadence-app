@@ -96,7 +96,7 @@ You have the ability to modify the user's training plan using function calls. Wh
 
       // Execute all function calls
       const functionResults = await Promise.all(
-        responseMessage.tool_calls.map(async (toolCall) => {
+        responseMessage.tool_calls.map(async (toolCall: any) => {
           const functionName = toolCall.function.name
           const functionArgs = JSON.parse(toolCall.function.arguments)
 
