@@ -7,10 +7,11 @@ import { createClient } from '@/lib/supabase/client'
 interface AddRunModalProps {
   isOpen: boolean
   onClose: () => void
+  onAdded: () => void
   userId: string
 }
 
-export default function AddRunModal({ isOpen, onClose, userId }: AddRunModalProps) {
+export default function AddRunModal({ isOpen, onClose, onAdded, userId }: AddRunModalProps) {
   const [formData, setFormData] = useState({
     scheduled_date: '',
     run_type: 'Easy Run',
@@ -39,7 +40,7 @@ export default function AddRunModal({ isOpen, onClose, userId }: AddRunModalProp
 
     if (!error) {
       onClose()
-      window.location.reload()
+      onAdded()
     } else {
       console.error('Error adding run:', error)
     }

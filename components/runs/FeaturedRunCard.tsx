@@ -18,10 +18,10 @@ import { useState } from 'react'
 interface FeaturedRunCardProps {
   run: Run
   onLogRun?: () => void
+  onReschedule?: () => void
 }
 
-export default function FeaturedRunCard({ run, onLogRun }: FeaturedRunCardProps) {
-  const [isLoggingRun, setIsLoggingRun] = useState(false)
+export default function FeaturedRunCard({ run, onLogRun, onReschedule }: FeaturedRunCardProps) {
 
   // Map run types to specific Lucide Icons
   const getRunIcon = (type: string) => {
@@ -49,27 +49,15 @@ export default function FeaturedRunCard({ run, onLogRun }: FeaturedRunCardProps)
       : `${rawPace} min/km` 
     : 'N/A'
 
-  const handleLogRun = async () => {
-    setIsLoggingRun(true)
+  const handleLogRun = () => {
+    if (onLogRun) {
+      onLogRun()
+    }
+  }
 
-    const runCards = document.querySelectorAll('[data-run-id]')
-    const targetCard = Array.from(runCards).find(
-      card => card.getAttribute('data-run-id') === run.id
-    )
-
-    if (targetCard) {
-      targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      const logButton = targetCard.querySelector('button[aria-label="Log this run"]') as HTMLButtonElement
-      if (logButton) {
-        setTimeout(() => {
-          logButton.click()
-          setIsLoggingRun(false)
-        }, 500)
-      } else {
-        setIsLoggingRun(false)
-      }
-    } else {
-      setIsLoggingRun(false)
+  const handleReschedule = () => {
+    if (onReschedule) {
+      onReschedule()
     }
   }
 
@@ -153,23 +141,29 @@ export default function FeaturedRunCard({ run, onLogRun }: FeaturedRunCardProps)
           </div>
         )}
 
-        {/* Primary Action Button */}
-        <button
-          onClick={handleLogRun}
-          disabled={isLoggingRun}
-          className="w-full group relative overflow-hidden rounded-xl bg-primary-600 hover:bg-primary-700 text-white px-6 py-4 font-bold text-lg shadow-lg shadow-primary-600/20 hover:shadow-primary-600/40 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-        >
-          <div className="relative flex items-center justify-center gap-2">
-            {isLoggingRun ? (
-              <>Opening...</>
-            ) : (
-              <>
-                <Trophy className="w-5 h-5 transition-transform group-hover:-translate-y-0.5 group-hover:rotate-12" />
-                <span>Log This Run</span>
-              </>
-            )}
-          </div>
-        </button>
+        {/* Action Buttons */}
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+          <button
+            onClick={handleLogRun}
+            className="group relative overflow-hidden rounded-lg sm:rounded-xl bg-primary-600 hover:bg-primary-700 text-white px-4 sm:px-6 py-3 sm:py-4 font-bold text-base sm:text-lg shadow-lg shadow-primary-600/20 hover:shadow-primary-600/40 transition-all"
+          >
+            <div className="relative flex items-center justify-center gap-1.5 sm:gap-2">
+              <Trophy className="w-4 h-4 sm:w-5 sm:h-5 transition-transform group-hover:-translate-y-0.5 group-hover:rotate-12" />
+              <span className="hidden sm:inline">Log Run</span>
+              <span className="sm:hidden">Log</span>
+            </div>
+          </button>
+          <button
+            onClick={handleReschedule}
+            className="group relative overflow-hidden rounded-lg sm:rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-900 dark:text-white px-4 sm:px-6 py-3 sm:py-4 font-bold text-base sm:text-lg shadow-lg transition-all"
+          >
+            <div className="relative flex items-center justify-center gap-1.5 sm:gap-2">
+              <Calendar className="w-4 h-4 sm:w-5 sm:h-5 transition-transform group-hover:-translate-y-0.5" />
+              <span className="hidden sm:inline">Reschedule</span>
+              <span className="sm:hidden">Edit</span>
+            </div>
+          </button>
+        </div>
       </div>
 
       {/* Subtle Background decoration */}

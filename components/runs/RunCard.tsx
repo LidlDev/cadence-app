@@ -182,30 +182,30 @@ export default function RunCard({ run, userId }: RunCardProps) {
   return (
     <div
       data-run-id={run.id}
-      className={`rounded-xl shadow-lg p-6 border-2 ${cardColor} transition-all hover:shadow-xl`}
+      className={`rounded-xl shadow-lg p-4 sm:p-6 border-2 ${cardColor} transition-all hover:shadow-xl`}
     >
       {/* Header */}
-      <div className="flex justify-between items-start mb-4">
-        <div>
-          <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+      <div className="flex justify-between items-start mb-3 sm:mb-4">
+        <div className="flex-1 min-w-0">
+          <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white truncate">
             {run.run_type}
           </h3>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
             Week {run.week_number} • {run.day_of_week}
           </p>
         </div>
         {run.completed ? (
-          <CheckCircle className="w-6 h-6 text-green-600" />
+          <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 flex-shrink-0 ml-2" />
         ) : (
-          <Circle className="w-6 h-6 text-slate-400" />
+          <Circle className="w-5 h-5 sm:w-6 sm:h-6 text-slate-400 flex-shrink-0 ml-2" />
         )}
       </div>
 
       {/* Date */}
       <div className="flex items-center gap-2 mb-3 text-slate-700 dark:text-slate-300">
-        <Clock className="w-4 h-4" />
-        <span className="text-sm font-medium">
-          {format(new Date(run.scheduled_date + 'T00:00:00'), 'EEEE, MMM d, yyyy')}
+        <Clock className="w-4 h-4 flex-shrink-0" />
+        <span className="text-xs sm:text-sm font-medium truncate">
+          {format(new Date(run.scheduled_date + 'T00:00:00'), 'EEE, MMM d, yyyy')}
         </span>
       </div>
 

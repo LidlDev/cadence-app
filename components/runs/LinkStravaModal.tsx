@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X, Activity, Clock, MapPin, Heart, TrendingUp, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
+import Toast from '@/components/ui/Toast'
 
 interface StravaActivity {
   id: number
@@ -28,6 +29,7 @@ export default function LinkStravaModal({ runId, isOpen, onClose, onLinked }: Li
   const [activities, setActivities] = useState<StravaActivity[]>([])
   const [loading, setLoading] = useState(true)
   const [linking, setLinking] = useState<number | null>(null)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   useEffect(() => {
     if (isOpen) {
@@ -69,15 +71,17 @@ export default function LinkStravaModal({ runId, isOpen, onClose, onLinked }: Li
       const data = await response.json()
 
       if (data.success) {
-        alert('✅ Successfully linked Strava activity!')
-        onLinked()
-        onClose()
+        setToast({ message: 'Successfully linked Strava activity!', type: 'success' })
+        setTimeout(() => {
+          onLinked()
+          onClose()
+        }, 1500)
       } else {
-        alert(data.error || 'Failed to link activity')
+        setToast({ message: data.error || 'Failed to link activity', type: 'error' })
       }
     } catch (error) {
       console.error('Error linking activity:', error)
-      alert('Failed to link activity')
+      setToast({ message: 'Failed to link activity', type: 'error' })
     } finally {
       setLinking(null)
     }
@@ -170,6 +174,16 @@ export default function LinkStravaModal({ runId, isOpen, onClose, onLinked }: Li
           )}
         </div>
       </div>
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          isOpen={!!toast}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   )
 }

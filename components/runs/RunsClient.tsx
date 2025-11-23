@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Run } from '@/lib/types/database'
 import RunCard from './RunCard'
 import AddRunModal from './AddRunModal'
@@ -8,6 +9,7 @@ import EditRunModal from './EditRunModal'
 import FeaturedRunCard from './FeaturedRunCard'
 import CalendarView from './CalendarView'
 import BestPerformances from './BestPerformances'
+import LinkStravaModal from './LinkStravaModal'
 import { Calendar, Filter, Plus } from 'lucide-react'
 import { format, isAfter, isBefore, startOfDay } from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
@@ -18,11 +20,12 @@ interface RunsClientProps {
 }
 
 export default function RunsClient({ runs, userId }: RunsClientProps) {
+  const router = useRouter()
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'completed'>('upcoming')
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [selectedWeek, setSelectedWeek] = useState<number | 'all'>('all')
   const [editingRun, setEditingRun] = useState<Run | null>(null)
-  const [refreshKey, setRefreshKey] = useState(0)
+  const [linkingStravaRun, setLinkingStravaRun] = useState<Run | null>(null)
 
   const today = startOfDay(new Date())
 
@@ -81,7 +84,11 @@ export default function RunsClient({ runs, userId }: RunsClientProps) {
         {/* Featured Upcoming Run */}
         {nextUpcomingRun && filter === 'upcoming' && (
           <div className="mb-8">
-            <FeaturedRunCard run={nextUpcomingRun} />
+            <FeaturedRunCard
+              run={nextUpcomingRun}
+              onLogRun={() => setLinkingStravaRun(nextUpcomingRun)}
+              onReschedule={() => setEditingRun(nextUpcomingRun)}
+            />
           </div>
         )}
 
@@ -163,6 +170,7 @@ export default function RunsClient({ runs, userId }: RunsClientProps) {
       <AddRunModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
+        onAdded={() => router.refresh()}
         userId={userId}
       />
 
@@ -173,8 +181,21 @@ export default function RunsClient({ runs, userId }: RunsClientProps) {
           isOpen={!!editingRun}
           onClose={() => setEditingRun(null)}
           onUpdate={() => {
-            setRefreshKey(prev => prev + 1)
-            window.location.reload() // Refresh the page to show updated data
+            setEditingRun(null)
+            router.refresh()
+          }}
+        />
+      )}
+
+      {/* Link Strava Modal */}
+      {linkingStravaRun && (
+        <LinkStravaModal
+          runId={linkingStravaRun.id}
+          isOpen={!!linkingStravaRun}
+          onClose={() => setLinkingStravaRun(null)}
+          onLinked={() => {
+            setLinkingStravaRun(null)
+            router.refresh()
           }}
         />
       )}
