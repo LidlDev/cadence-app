@@ -155,7 +155,7 @@ You have the ability to modify the user's training plan using function calls. Wh
 
       return NextResponse.json({
         message: secondCompletion.choices[0].message.content,
-        function_calls: responseMessage.tool_calls.map((tc) => tc.function.name),
+        function_calls: responseMessage.tool_calls.map((tc: any) => tc.function.name),
         modifications_made: true,
       })
     }
