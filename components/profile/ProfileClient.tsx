@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { User, Activity, Link as LinkIcon, CheckCircle, XCircle, RefreshCw } from 'lucide-react'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
+import ProfileSettings from './ProfileSettings'
 
 interface ProfileClientProps {
   user: any
@@ -12,6 +14,7 @@ interface ProfileClientProps {
 }
 
 export default function ProfileClient({ user, profile, stravaConnected, stravaAthlete }: ProfileClientProps) {
+  const router = useRouter()
   const [connecting, setConnecting] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshResult, setRefreshResult] = useState<any>(null)
@@ -97,8 +100,14 @@ export default function ProfileClient({ user, profile, stravaConnected, stravaAt
           </p>
         </div>
 
-        {/* Profile Card */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-6 mb-6">
+        {/* Profile Settings */}
+        <ProfileSettings
+          profile={profile}
+          onUpdate={() => router.refresh()}
+        />
+
+        {/* Account Information Card */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-6 mb-6 mt-6">
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">
             Account Information
           </h2>
@@ -108,16 +117,12 @@ export default function ProfileClient({ user, profile, stravaConnected, stravaAt
               <p className="text-lg text-slate-900 dark:text-white">{user.email}</p>
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Full Name</label>
-              <p className="text-lg text-slate-900 dark:text-white">{profile?.full_name || 'Not set'}</p>
-            </div>
-            <div>
               <label className="text-sm font-medium text-slate-600 dark:text-slate-400">Member Since</label>
               <p className="text-lg text-slate-900 dark:text-white">
-                {new Date(user.created_at).toLocaleDateString('en-US', { 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
+                {new Date(user.created_at).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
                 })}
               </p>
             </div>

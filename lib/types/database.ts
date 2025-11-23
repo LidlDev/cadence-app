@@ -5,6 +5,29 @@ export interface Profile {
   avatar_url: string | null
   created_at: string
   updated_at: string
+
+  // Physical attributes
+  age: number | null
+  gender: 'male' | 'female' | 'other' | 'prefer_not_to_say' | null
+  weight_kg: number | null
+  height_cm: number | null
+
+  // Heart rate configuration
+  max_heart_rate: number | null
+  resting_heart_rate: number | null
+
+  // Custom HR zones
+  hr_zone_1_max: number | null // Max HR for Zone 1 (Recovery)
+  hr_zone_2_max: number | null // Max HR for Zone 2 (Aerobic)
+  hr_zone_3_max: number | null // Max HR for Zone 3 (Tempo)
+  hr_zone_4_max: number | null // Max HR for Zone 4 (Threshold)
+  // Zone 5 is anything above zone_4_max
+
+  // Training preferences
+  preferred_units: 'metric' | 'imperial' | null
+  running_experience: 'beginner' | 'intermediate' | 'advanced' | 'elite' | null
+  training_goal: string | null
+  weekly_mileage_target: number | null
 }
 
 export interface TrainingPlan {

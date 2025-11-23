@@ -77,18 +77,27 @@ async function fetchActivityStreams(
 }
 
 /**
- * Calculate heart rate zones based on max HR
- * Zones: 1 (<60%), 2 (60-70%), 3 (70-80%), 4 (80-90%), 5 (>90%)
+ * Calculate heart rate zones based on user's custom HR zones or max HR
+ * Uses user's actual zone thresholds if available, otherwise falls back to percentages
  */
-function calculateHRZones(hrData: number[], maxHR: number) {
+function calculateHRZones(
+  hrData: number[],
+  userHRZones: { zone_1_max: number; zone_2_max: number; zone_3_max: number; zone_4_max: number } | null,
+  maxHR: number
+) {
   const zones = { zone_1: 0, zone_2: 0, zone_3: 0, zone_4: 0, zone_5: 0 }
 
+  // Use user's custom zones if available, otherwise calculate from max HR
+  const zone1Max = userHRZones?.zone_1_max || Math.round(maxHR * 0.60)
+  const zone2Max = userHRZones?.zone_2_max || Math.round(maxHR * 0.70)
+  const zone3Max = userHRZones?.zone_3_max || Math.round(maxHR * 0.80)
+  const zone4Max = userHRZones?.zone_4_max || Math.round(maxHR * 0.90)
+
   hrData.forEach((hr) => {
-    const percentage = (hr / maxHR) * 100
-    if (percentage < 60) zones.zone_1++
-    else if (percentage < 70) zones.zone_2++
-    else if (percentage < 80) zones.zone_3++
-    else if (percentage < 90) zones.zone_4++
+    if (hr <= zone1Max) zones.zone_1++
+    else if (hr <= zone2Max) zones.zone_2++
+    else if (hr <= zone3Max) zones.zone_3++
+    else if (hr <= zone4Max) zones.zone_4++
     else zones.zone_5++
   })
 
@@ -153,7 +162,21 @@ export async function syncStravaActivity(
     // 4. Calculate and store heart rate zones if HR data available (only if runId is provided)
     const hrStream = streams.find((s) => s.type === 'heartrate')
     if (runId && hrStream && activity.max_heartrate) {
-      const zones = calculateHRZones(hrStream.data as number[], activity.max_heartrate)
+      // Fetch user's HR zone configuration
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('hr_zone_1_max, hr_zone_2_max, hr_zone_3_max, hr_zone_4_max')
+        .eq('id', userId)
+        .single()
+
+      const userHRZones = userProfile && userProfile.hr_zone_1_max ? {
+        zone_1_max: userProfile.hr_zone_1_max,
+        zone_2_max: userProfile.hr_zone_2_max,
+        zone_3_max: userProfile.hr_zone_3_max,
+        zone_4_max: userProfile.hr_zone_4_max,
+      } : null
+
+      const zones = calculateHRZones(hrStream.data as number[], userHRZones, activity.max_heartrate)
       const hrZones = {
         user_id: userId,
         run_id: runId,

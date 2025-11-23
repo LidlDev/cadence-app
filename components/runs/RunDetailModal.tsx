@@ -146,41 +146,51 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
 
               {/* Pace Analysis Bar Chart with Trendline */}
               {data.streams?.velocity_smooth && data.streams?.distance && (
-                <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-6">
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 rounded-xl p-6 border border-emerald-100 dark:border-emerald-900/30">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                     <BarChart3 className="w-5 h-5 text-emerald-600" />
                     Pace Analysis by Kilometer
                   </h3>
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={prepareKmPaceData(data.streams)}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.1} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" opacity={0.3} />
                       <XAxis
                         dataKey="km"
-                        label={{ value: 'Kilometer', position: 'insideBottom', offset: -5 }}
-                        stroke="#64748b"
+                        label={{ value: 'Kilometer', position: 'insideBottom', offset: -5, fill: '#64748b' }}
+                        stroke="#94a3b8"
+                        tick={{ fill: '#64748b' }}
                       />
                       <YAxis
-                        label={{ value: 'Pace (min/km)', angle: -90, position: 'insideLeft' }}
-                        stroke="#64748b"
+                        label={{ value: 'Pace (min/km)', angle: -90, position: 'insideLeft', fill: '#64748b' }}
+                        stroke="#94a3b8"
+                        tick={{ fill: '#64748b' }}
+                        reversed={true}
+                        domain={getPaceDomain(prepareKmPaceData(data.streams))}
+                        tickFormatter={(value) => value.toFixed(1)}
                       />
                       <Tooltip
-                        contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }}
-                        labelStyle={{ color: '#f1f5f9' }}
-                        formatter={(value: any) => [`${value} min/km`, 'Pace']}
+                        contentStyle={{
+                          backgroundColor: '#1e293b',
+                          border: '1px solid #10b981',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                        }}
+                        labelStyle={{ color: '#f1f5f9', fontWeight: 'bold' }}
+                        formatter={(value: any) => [`${parseFloat(value).toFixed(2)} min/km`, 'Pace']}
                       />
                       <Bar dataKey="pace" fill="#10b981" radius={[8, 8, 0, 0]} />
                       <Line
                         type="monotone"
                         dataKey="trendline"
                         stroke="#ef4444"
-                        strokeWidth={2}
+                        strokeWidth={2.5}
                         dot={false}
                         strokeDasharray="5 5"
                       />
                     </BarChart>
                   </ResponsiveContainer>
                   <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 text-center">
-                    Red dashed line shows performance trend
+                    Faster pace shown higher • Red dashed line shows performance trend
                   </p>
                 </div>
               )}
@@ -304,155 +314,213 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
 
               {/* Detailed Pace Graph */}
               {data.streams?.velocity_smooth && (
-                <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-6">
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 rounded-xl p-6 border border-emerald-100 dark:border-emerald-900/30">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                     <TrendingUp className="w-5 h-5 text-emerald-600" />
-                    Detailed Pace Over Distance
+                    Pace Over Distance
                   </h3>
                   <ResponsiveContainer width="100%" height={350}>
                     <LineChart data={prepareDetailedPaceData(data.streams)}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.1} />
+                      <defs>
+                        <linearGradient id="paceGradient" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#10b981" stopOpacity={0.8}/>
+                          <stop offset="100%" stopColor="#14b8a6" stopOpacity={0.8}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" opacity={0.3} />
                       <XAxis
                         dataKey="distance"
-                        label={{ value: 'Distance (km)', position: 'insideBottom', offset: -5 }}
-                        stroke="#64748b"
+                        label={{ value: 'Distance (km)', position: 'insideBottom', offset: -5, fill: '#64748b' }}
+                        stroke="#94a3b8"
+                        tick={{ fill: '#64748b' }}
                       />
                       <YAxis
-                        label={{ value: 'Pace (min/km)', angle: -90, position: 'insideLeft' }}
-                        stroke="#64748b"
+                        label={{ value: 'Pace (min/km)', angle: -90, position: 'insideLeft', fill: '#64748b' }}
+                        stroke="#94a3b8"
+                        tick={{ fill: '#64748b' }}
+                        reversed={true}
+                        domain={getPaceDomain(prepareDetailedPaceData(data.streams))}
+                        tickFormatter={(value) => value.toFixed(1)}
                       />
                       <Tooltip
-                        contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }}
-                        labelStyle={{ color: '#f1f5f9' }}
-                        formatter={(value: any) => [`${value} min/km`, 'Pace']}
+                        contentStyle={{
+                          backgroundColor: '#1e293b',
+                          border: '1px solid #10b981',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                        }}
+                        labelStyle={{ color: '#f1f5f9', fontWeight: 'bold' }}
+                        formatter={(value: any) => [`${parseFloat(value).toFixed(2)} min/km`, 'Pace']}
                       />
                       <Line
                         type="monotone"
                         dataKey="pace"
-                        stroke="#10b981"
-                        strokeWidth={1.5}
+                        stroke="url(#paceGradient)"
+                        strokeWidth={2.5}
                         dot={false}
                       />
                     </LineChart>
                   </ResponsiveContainer>
                   <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 text-center">
-                    Granular pace data showing every data point
+                    Real-time pace data • Faster pace shown higher on graph
                   </p>
                 </div>
               )}
 
               {/* Detailed Elevation Profile */}
               {data.streams?.altitude && (
-                <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-6">
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20 rounded-xl p-6 border border-amber-100 dark:border-amber-900/30">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                     <Mountain className="w-5 h-5 text-amber-600" />
-                    Detailed Elevation Profile
+                    Elevation Profile
                   </h3>
                   <ResponsiveContainer width="100%" height={350}>
                     <AreaChart data={prepareDetailedElevationData(data.streams)}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.1} />
+                      <defs>
+                        <linearGradient id="elevationGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4}/>
+                          <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.05}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" opacity={0.3} />
                       <XAxis
                         dataKey="distance"
-                        label={{ value: 'Distance (km)', position: 'insideBottom', offset: -5 }}
-                        stroke="#64748b"
+                        label={{ value: 'Distance (km)', position: 'insideBottom', offset: -5, fill: '#64748b' }}
+                        stroke="#94a3b8"
+                        tick={{ fill: '#64748b' }}
                       />
                       <YAxis
-                        label={{ value: 'Elevation (m)', angle: -90, position: 'insideLeft' }}
-                        stroke="#64748b"
+                        label={{ value: 'Elevation (m)', angle: -90, position: 'insideLeft', fill: '#64748b' }}
+                        stroke="#94a3b8"
+                        tick={{ fill: '#64748b' }}
                       />
                       <Tooltip
-                        contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }}
-                        labelStyle={{ color: '#f1f5f9' }}
-                        formatter={(value: any) => [`${value}m`, 'Elevation']}
+                        contentStyle={{
+                          backgroundColor: '#1e293b',
+                          border: '1px solid #f59e0b',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                        }}
+                        labelStyle={{ color: '#f1f5f9', fontWeight: 'bold' }}
+                        formatter={(value: any) => [`${Math.round(value)}m`, 'Elevation']}
                       />
                       <Area
                         type="monotone"
                         dataKey="elevation"
                         stroke="#f59e0b"
-                        fill="#f59e0b"
-                        fillOpacity={0.3}
+                        fill="url(#elevationGradient)"
+                        strokeWidth={2.5}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
                   <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 text-center">
-                    Full elevation profile with all data points
+                    Terrain elevation changes throughout your run
                   </p>
                 </div>
               )}
 
               {/* Detailed Heart Rate Graph */}
               {data.streams?.heartrate && (
-                <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-6">
+                <div className="bg-gradient-to-br from-red-50 to-pink-50 dark:from-red-950/20 dark:to-pink-950/20 rounded-xl p-6 border border-red-100 dark:border-red-900/30">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                     <Heart className="w-5 h-5 text-red-600" />
-                    Detailed Heart Rate Over Time
+                    Heart Rate Over Time
                   </h3>
                   <ResponsiveContainer width="100%" height={350}>
                     <AreaChart data={prepareDetailedHRData(data.streams)}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.1} />
+                      <defs>
+                        <linearGradient id="hrGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#ef4444" stopOpacity={0.05}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" dark:stroke="#475569" opacity={0.3} />
                       <XAxis
                         dataKey="time"
-                        label={{ value: 'Time (min)', position: 'insideBottom', offset: -5 }}
-                        stroke="#64748b"
+                        label={{ value: 'Time (min)', position: 'insideBottom', offset: -5, fill: '#64748b' }}
+                        stroke="#94a3b8"
+                        tick={{ fill: '#64748b' }}
                       />
                       <YAxis
-                        label={{ value: 'Heart Rate (bpm)', angle: -90, position: 'insideLeft' }}
-                        stroke="#64748b"
-                        domain={['dataMin - 10', 'dataMax + 10']}
+                        label={{ value: 'Heart Rate (bpm)', angle: -90, position: 'insideLeft', fill: '#64748b' }}
+                        stroke="#94a3b8"
+                        tick={{ fill: '#64748b' }}
+                        domain={['dataMin - 5', 'dataMax + 5']}
                       />
                       <Tooltip
-                        contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }}
-                        labelStyle={{ color: '#f1f5f9' }}
-                        formatter={(value: any) => [`${value} bpm`, 'Heart Rate']}
+                        contentStyle={{
+                          backgroundColor: '#1e293b',
+                          border: '1px solid #ef4444',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                        }}
+                        labelStyle={{ color: '#f1f5f9', fontWeight: 'bold' }}
+                        formatter={(value: any) => [`${Math.round(value)} bpm`, 'Heart Rate']}
                       />
                       <Area
                         type="monotone"
                         dataKey="hr"
                         stroke="#ef4444"
-                        fill="#ef4444"
-                        fillOpacity={0.2}
-                        strokeWidth={1.5}
+                        fill="url(#hrGradient)"
+                        strokeWidth={2.5}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
                   <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 text-center">
-                    Granular heart rate data showing every beat
+                    Real-time heart rate data throughout your run
                   </p>
                 </div>
               )}
 
               {/* Cadence Graph */}
               {data.streams?.cadence && (
-                <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-6">
+                <div className="bg-gradient-to-br from-purple-50 to-fuchsia-50 dark:from-purple-950/20 dark:to-fuchsia-950/20 rounded-xl p-6 border border-purple-100 dark:border-purple-900/30">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                     <Footprints className="w-5 h-5 text-purple-600" />
                     Cadence Over Time
                   </h3>
                   <ResponsiveContainer width="100%" height={300}>
                     <LineChart data={prepareCadenceData(data.streams)}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.1} />
+                      <defs>
+                        <linearGradient id="cadenceGradient" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#a855f7" stopOpacity={0.8}/>
+                          <stop offset="100%" stopColor="#d946ef" stopOpacity={0.8}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" opacity={0.3} />
                       <XAxis
                         dataKey="time"
-                        label={{ value: 'Time (min)', position: 'insideBottom', offset: -5 }}
-                        stroke="#64748b"
+                        label={{ value: 'Time (min)', position: 'insideBottom', offset: -5, fill: '#64748b' }}
+                        stroke="#94a3b8"
+                        tick={{ fill: '#64748b' }}
                       />
                       <YAxis
-                        label={{ value: 'Cadence (spm)', angle: -90, position: 'insideLeft' }}
-                        stroke="#64748b"
+                        label={{ value: 'Cadence (spm)', angle: -90, position: 'insideLeft', fill: '#64748b' }}
+                        stroke="#94a3b8"
+                        tick={{ fill: '#64748b' }}
                       />
                       <Tooltip
-                        contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }}
-                        labelStyle={{ color: '#f1f5f9' }}
+                        contentStyle={{
+                          backgroundColor: '#1e293b',
+                          border: '1px solid #a855f7',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                        }}
+                        labelStyle={{ color: '#f1f5f9', fontWeight: 'bold' }}
+                        formatter={(value: any) => [`${Math.round(value)} spm`, 'Cadence']}
                       />
                       <Line
                         type="monotone"
                         dataKey="cadence"
-                        stroke="#a855f7"
-                        strokeWidth={2}
+                        stroke="url(#cadenceGradient)"
+                        strokeWidth={2.5}
                         dot={false}
                       />
                     </LineChart>
                   </ResponsiveContainer>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 text-center">
+                    Steps per minute throughout your run
+                  </p>
                 </div>
               )}
 
@@ -862,5 +930,29 @@ function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60)
   const secs = seconds % 60
   return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
+/**
+ * Calculate optimal Y-axis domain for pace graphs
+ * Returns [min, max] with padding to avoid excessive whitespace
+ * Reversed axis means faster pace (lower number) is higher on graph
+ */
+function getPaceDomain(data: any[]): [number, number] {
+  if (!data || data.length === 0) return [3, 8]
+
+  const paces = data.map(d => parseFloat(d.pace)).filter(p => p > 0 && p < 15)
+  if (paces.length === 0) return [3, 8]
+
+  const minPace = Math.min(...paces)
+  const maxPace = Math.max(...paces)
+
+  // Add 10% padding on each side
+  const range = maxPace - minPace
+  const padding = range * 0.1 || 0.5 // Minimum 0.5 min/km padding
+
+  return [
+    Math.max(2, minPace - padding), // Don't go below 2 min/km (unrealistic)
+    Math.min(15, maxPace + padding) // Don't go above 15 min/km
+  ]
 }
 
