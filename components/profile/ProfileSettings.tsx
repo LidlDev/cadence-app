@@ -119,24 +119,31 @@ export default function ProfileSettings({ profile, onUpdate }: ProfileSettingsPr
 
           const recalcResult = await recalcResponse.json()
 
-          if (recalcResponse.ok) {
+          console.log('Recalculation result:', recalcResult)
+
+          if (recalcResponse.ok && recalcResult.success) {
+            const errorMsg = recalcResult.errors && recalcResult.errors.length > 0
+              ? ` (${recalcResult.errors.length} errors - check console)`
+              : ''
             setToast({
-              message: `Profile updated! ${recalcResult.recalculated} run(s) recalculated.`,
-              type: 'success'
+              message: `Profile updated! ${recalcResult.recalculated}/${recalcResult.total} run(s) recalculated${errorMsg}.`,
+              type: recalcResult.errors && recalcResult.errors.length > 0 ? 'error' : 'success'
             })
+            if (recalcResult.errors) {
+              console.error('Recalculation errors:', recalcResult.errors)
+            }
           } else {
-            console.error('Recalculation error:', recalcResult.error)
+            console.error('Recalculation failed:', recalcResult)
             setToast({
-              message: 'Profile updated, but some runs could not be recalculated.',
-              type: 'success'
+              message: `Profile updated, but recalculation failed: ${recalcResult.error || 'Unknown error'}`,
+              type: 'error'
             })
           }
         } catch (recalcError) {
           console.error('Error triggering recalculation:', recalcError)
-          // Still show success for profile update
           setToast({
-            message: 'Profile updated! Please refresh to see updated HR zones.',
-            type: 'success'
+            message: 'Profile updated, but failed to recalculate HR zones. Check console for details.',
+            type: 'error'
           })
         }
       } else {

@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Heart, Zap, TrendingUp, Mountain, Thermometer, Activity, Footprints, Gauge, Clock, BarChart3 } from 'lucide-react'
+import { X, Heart, Zap, TrendingUp, Mountain, Thermometer, Activity, Footprints, Gauge, Clock, BarChart3, RefreshCw } from 'lucide-react'
 import { PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from 'recharts'
+import Toast from '@/components/ui/Toast'
 
 interface RunDetailModalProps {
   isOpen: boolean
@@ -20,6 +21,8 @@ interface ActivityData {
 export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDetailModalProps) {
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<ActivityData | null>(null)
+  const [recalculating, setRecalculating] = useState(false)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   useEffect(() => {
     if (isOpen && runId) {
@@ -32,7 +35,7 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
     try {
       const response = await fetch(`/api/runs/${runId}/details`)
       const result = await response.json()
-      
+
       if (result.success) {
         setData(result.data)
       }
@@ -40,6 +43,29 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
       console.error('Error fetching activity data:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleRecalculateHRZones = async () => {
+    setRecalculating(true)
+    try {
+      const response = await fetch(`/api/runs/${runId}/recalculate-hr-zones`, {
+        method: 'POST',
+      })
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        setToast({ message: 'Heart rate zones recalculated successfully!', type: 'success' })
+        // Refresh the data
+        await fetchActivityData()
+      } else {
+        setToast({ message: result.error || 'Failed to recalculate zones', type: 'error' })
+      }
+    } catch (error) {
+      console.error('Error recalculating HR zones:', error)
+      setToast({ message: 'Failed to recalculate zones', type: 'error' })
+    } finally {
+      setRecalculating(false)
     }
   }
 
@@ -253,10 +279,20 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
               {/* Heart Rate Zones */}
               {data.hrZones && (
                 <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-6">
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                    <Heart className="w-5 h-5 text-red-600" />
-                    Heart Rate Zones
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <Heart className="w-5 h-5 text-red-600" />
+                      Heart Rate Zones
+                    </h3>
+                    <button
+                      onClick={handleRecalculateHRZones}
+                      disabled={recalculating}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 disabled:bg-slate-400 rounded-lg transition-colors"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${recalculating ? 'animate-spin' : ''}`} />
+                      {recalculating ? 'Recalculating...' : 'Recalculate Zones'}
+                    </button>
+                  </div>
                   <div className="grid md:grid-cols-2 gap-6">
                     {/* Pie Chart */}
                     <div className="flex items-center justify-center">
@@ -621,6 +657,13 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
           )}
         </div>
       </div>
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   )
 }
