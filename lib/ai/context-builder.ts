@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { calculateTSS, calculateCTL, calculateATL, calculateTSB, getFormStatus } from './training-load'
 import { generateInsights } from './insights-analyzer'
+import { detectTrainingPhase, getPhaseWorkoutRecommendations } from './training-phases'
 
 /**
  * Builds context for AI chat from user's training data
@@ -59,6 +60,14 @@ export async function buildUserContext(supabase: SupabaseClient, userId: string)
     .order('last_accessed', { ascending: false })
     .limit(10)
 
+  // Fetch training plan
+  const { data: trainingPlan } = await supabase
+    .from('training_plans')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .single()
+
   // Fetch upcoming runs for context
   const { data: upcomingRuns } = await supabase
     .from('runs')
@@ -68,6 +77,13 @@ export async function buildUserContext(supabase: SupabaseClient, userId: string)
     .gte('scheduled_date', new Date().toISOString().split('T')[0])
     .order('scheduled_date', { ascending: true })
     .limit(10)
+
+  // Fetch all runs for phase detection
+  const { data: allRuns } = await supabase
+    .from('runs')
+    .select('*')
+    .eq('user_id', userId)
+    .order('week_number', { ascending: true })
 
   // Fetch HR zone data for recent runs
   const recentRunIds = recentRuns?.map(r => r.id) || []
@@ -147,6 +163,12 @@ export async function buildUserContext(supabase: SupabaseClient, userId: string)
   // Generate proactive insights
   const insights = await generateInsights(supabase, userId, tsb, ctl, atl)
 
+  // Detect training phase
+  const currentWeek = trainingPlan && allRuns ?
+    Math.max(...allRuns.filter((r: any) => r.completed).map((r: any) => r.week_number), 1) : 1
+  const trainingPhase = detectTrainingPhase(trainingPlan, currentWeek, allRuns || [])
+  const phaseRecommendations = getPhaseWorkoutRecommendations(trainingPhase)
+
   // Build context string
   const context = {
     profile: profile ? {
@@ -220,6 +242,24 @@ export async function buildUserContext(supabase: SupabaseClient, userId: string)
       pace: perf.pace,
       date: perf.date,
     })) || [],
+    trainingPlan: trainingPlan ? {
+      name: trainingPlan.name,
+      goal_race: trainingPlan.goal_race,
+      goal_distance: trainingPlan.goal_distance,
+      weeks: trainingPlan.weeks,
+      current_week: currentWeek,
+      start_date: trainingPlan.start_date,
+      end_date: trainingPlan.end_date,
+    } : null,
+    trainingPhase: {
+      phase: trainingPhase.phase,
+      weekInPhase: trainingPhase.weekInPhase,
+      totalWeeksInPhase: trainingPhase.totalWeeksInPhase,
+      description: trainingPhase.description,
+      focus: trainingPhase.focus,
+      recommendations: trainingPhase.recommendations,
+      workoutGuidelines: phaseRecommendations,
+    },
     memories: memories?.map((mem) => ({
       category: mem.category,
       content: mem.content,
@@ -235,7 +275,7 @@ export async function buildUserContext(supabase: SupabaseClient, userId: string)
  * Formats context into a system message for the AI
  */
 export function formatContextForAI(context: any): string {
-  const { profile, summary, trainingLoad, hrZoneDistribution, recentRuns, personalBests, bestPerformances, memories, insights } = context
+  const { profile, summary, trainingLoad, hrZoneDistribution, recentRuns, personalBests, bestPerformances, memories, insights, trainingPlan, trainingPhase } = context
 
   let message = `You are a knowledgeable running coach assistant helping a runner with their training. Here's what you know about the user:\n\n`
 
@@ -264,6 +304,35 @@ export function formatContextForAI(context: any): string {
         message += `  - Zone 5 (Max): > ${profile.hr_zones.zone4_max} bpm\n`
       }
     }
+    message += `\n`
+  }
+
+  // Training Plan & Phase
+  if (trainingPlan) {
+    message += `## Training Plan\n`
+    message += `- Plan: ${trainingPlan.name}\n`
+    if (trainingPlan.goal_race) message += `- Goal Race: ${trainingPlan.goal_race}\n`
+    if (trainingPlan.goal_distance) message += `- Goal Distance: ${trainingPlan.goal_distance} km\n`
+    message += `- Week ${trainingPlan.current_week} of ${trainingPlan.weeks}\n`
+    message += `- Plan Duration: ${trainingPlan.start_date} to ${trainingPlan.end_date}\n`
+    message += `\n`
+  }
+
+  // Training Phase
+  if (trainingPhase) {
+    message += `### 📍 Current Training Phase: ${trainingPhase.phase.toUpperCase()}\n`
+    message += `- **Phase**: ${trainingPhase.description}\n`
+    message += `- **Week ${trainingPhase.weekInPhase} of ${trainingPhase.totalWeeksInPhase}** in this phase\n`
+    message += `- **Focus**: ${trainingPhase.focus}\n`
+    message += `\n**Phase-Specific Recommendations:**\n`
+    trainingPhase.recommendations.forEach((rec: string) => {
+      message += `- ${rec}\n`
+    })
+    message += `\n**Workout Guidelines for This Phase:**\n`
+    message += `- Easy runs should be ${trainingPhase.workoutGuidelines.easyRunPercent}% of weekly volume\n`
+    message += `- Include ${trainingPhase.workoutGuidelines.qualityRunsPerWeek} quality session(s) per week\n`
+    message += `- Long run: ${trainingPhase.workoutGuidelines.longRunDistance}\n`
+    message += `- Intensity focus: ${trainingPhase.workoutGuidelines.intensityFocus}\n`
     message += `\n`
   }
 
@@ -376,7 +445,7 @@ export function formatContextForAI(context: any): string {
 
     // Sort by priority
     const sortedInsights = [...insights].sort((a, b) => {
-      const priorityOrder = { high: 0, medium: 1, low: 2 }
+      const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 }
       return priorityOrder[a.priority] - priorityOrder[b.priority]
     })
 

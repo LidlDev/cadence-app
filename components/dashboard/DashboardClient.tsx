@@ -49,7 +49,7 @@ export default function DashboardClient({
           <PredictionsCard />
 
           {/* Weekly Suffer Score */}
-          <SufferScoreCard stravaActivities={stravaActivities} />
+          <SufferScoreCard />
 
           {/* AI Chat */}
           <div className="lg:col-span-2">

@@ -1,17 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { StravaActivity, Run } from '@/lib/types/database'
-import { Activity, TrendingUp } from 'lucide-react'
+import { Run } from '@/lib/types/database'
+import { TrendingUp } from 'lucide-react'
 import { startOfWeek, endOfWeek, isWithinInterval, format, subWeeks } from 'date-fns'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { createClient } from '@/lib/supabase/client'
 
-interface SufferScoreCardProps {
-  stravaActivities: StravaActivity[]
-}
-
-export default function SufferScoreCard({ stravaActivities }: SufferScoreCardProps) {
+export default function SufferScoreCard() {
   const [runs, setRuns] = useState<Run[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -25,6 +21,7 @@ export default function SufferScoreCard({ stravaActivities }: SufferScoreCardPro
       .from('runs')
       .select('*')
       .eq('completed', true)
+      .not('actual_distance', 'is', null)
       .order('scheduled_date', { ascending: true })
 
     setRuns(data || [])
@@ -34,19 +31,13 @@ export default function SufferScoreCard({ stravaActivities }: SufferScoreCardPro
   const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 })
   const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 })
 
-  const weeklySufferScore = stravaActivities
-    .filter(activity => {
-      if (!activity.start_date) return false
-      const activityDate = new Date(activity.start_date)
-      return isWithinInterval(activityDate, { start: weekStart, end: weekEnd })
-    })
-    .reduce((sum, activity) => sum + (activity.suffer_score || 0), 0)
-
-  const weeklyActivities = stravaActivities.filter(activity => {
-    if (!activity.start_date) return false
-    const activityDate = new Date(activity.start_date)
-    return isWithinInterval(activityDate, { start: weekStart, end: weekEnd })
+  // Calculate weekly suffer score from runs table
+  const weekRuns = runs.filter(run => {
+    const runDate = new Date(run.scheduled_date)
+    return isWithinInterval(runDate, { start: weekStart, end: weekEnd })
   })
+
+  const weeklySufferScore = weekRuns.reduce((sum, run) => sum + (run.suffer_score || 0), 0)
 
   // Prepare chart data for last 8 weeks
   const chartData = []
@@ -64,14 +55,8 @@ export default function SufferScoreCard({ stravaActivities }: SufferScoreCardPro
       ? weekRuns.reduce((sum, run) => sum + (run.rpe || 0), 0) / weekRuns.length
       : 0
 
-    // Calculate total suffer score for the week
-    const weekSufferScore = stravaActivities
-      .filter(activity => {
-        if (!activity.start_date) return false
-        const activityDate = new Date(activity.start_date)
-        return isWithinInterval(activityDate, { start: weekStart, end: weekEnd })
-      })
-      .reduce((sum, activity) => sum + (activity.suffer_score || 0), 0)
+    // Calculate total suffer score for the week from runs table
+    const weekSufferScore = weekRuns.reduce((sum, run) => sum + (run.suffer_score || 0), 0)
 
     chartData.push({
       week: format(weekStart, 'MMM d'),
