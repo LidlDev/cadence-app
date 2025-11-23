@@ -93,6 +93,14 @@ export default function ProfileSettings({ profile, onUpdate }: ProfileSettingsPr
         updated_at: new Date().toISOString(),
       }
 
+      // Check if HR zones were updated
+      const hrZonesChanged =
+        updateData.hr_zone_1_max !== profile.hr_zone_1_max ||
+        updateData.hr_zone_2_max !== profile.hr_zone_2_max ||
+        updateData.hr_zone_3_max !== profile.hr_zone_3_max ||
+        updateData.hr_zone_4_max !== profile.hr_zone_4_max ||
+        updateData.max_heart_rate !== profile.max_heart_rate
+
       const { error } = await supabase
         .from('profiles')
         .update(updateData)
@@ -100,10 +108,44 @@ export default function ProfileSettings({ profile, onUpdate }: ProfileSettingsPr
 
       if (error) throw error
 
-      setToast({ message: 'Profile updated successfully!', type: 'success' })
+      // If HR zones changed, recalculate all existing runs
+      if (hrZonesChanged) {
+        setToast({ message: 'Profile updated! Recalculating HR zones for all runs...', type: 'success' })
+
+        try {
+          const recalcResponse = await fetch('/api/runs/recalculate-hr-zones', {
+            method: 'POST',
+          })
+
+          const recalcResult = await recalcResponse.json()
+
+          if (recalcResponse.ok) {
+            setToast({
+              message: `Profile updated! ${recalcResult.recalculated} run(s) recalculated.`,
+              type: 'success'
+            })
+          } else {
+            console.error('Recalculation error:', recalcResult.error)
+            setToast({
+              message: 'Profile updated, but some runs could not be recalculated.',
+              type: 'success'
+            })
+          }
+        } catch (recalcError) {
+          console.error('Error triggering recalculation:', recalcError)
+          // Still show success for profile update
+          setToast({
+            message: 'Profile updated! Please refresh to see updated HR zones.',
+            type: 'success'
+          })
+        }
+      } else {
+        setToast({ message: 'Profile updated successfully!', type: 'success' })
+      }
+
       setTimeout(() => {
         onUpdate()
-      }, 1500)
+      }, 2000)
     } catch (error: any) {
       console.error('Error updating profile:', error)
       setToast({ message: error.message || 'Failed to update profile', type: 'error' })
