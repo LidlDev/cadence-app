@@ -661,6 +661,7 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
         <Toast
           message={toast.message}
           type={toast.type}
+          isOpen={!!toast}
           onClose={() => setToast(null)}
         />
       )}
