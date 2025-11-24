@@ -43,7 +43,7 @@ export default function DashboardClient({
           </div>
 
           {/* Personal Bests */}
-          <PersonalBestsCard personalBests={personalBests} />
+          <PersonalBestsCard personalBests={personalBests} runs={runs} />
 
           {/* Performance Predictions */}
           <PredictionsCard />
