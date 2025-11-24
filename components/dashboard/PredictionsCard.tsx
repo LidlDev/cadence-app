@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { TrendingUp, Target } from 'lucide-react'
+import { TrendingUp, Target, RefreshCw } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { calculateVDOTFromRuns, getRacePredictions, timeToSeconds, calculateAverageVDOT } from '@/lib/utils/vdot'
 
