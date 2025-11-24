@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Trophy, Medal, Award, ExternalLink } from 'lucide-react'
+import { Trophy, Medal, Award, ExternalLink, RefreshCw } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import RunDetailModal from './RunDetailModal'
+import { updateBestPerformances } from '@/lib/utils/update-best-performances'
 
 interface Performance {
   id: string
@@ -23,6 +24,7 @@ export default function BestPerformances({ userId }: BestPerformancesProps) {
   const [performances, setPerformances] = useState<{ [key: string]: Performance[] }>({})
   const [loading, setLoading] = useState(true)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
 
   const distances = ['1K', '5K', '10K', 'Half Marathon', 'Marathon']
 
@@ -34,7 +36,7 @@ export default function BestPerformances({ userId }: BestPerformancesProps) {
     setLoading(true)
     try {
       const supabase = createClient()
-      
+
       const { data, error } = await supabase
         .from('best_performances')
         .select('*')
@@ -58,6 +60,44 @@ export default function BestPerformances({ userId }: BestPerformancesProps) {
       console.error('Error fetching best performances:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    try {
+      const supabase = createClient()
+
+      // Fetch all completed runs
+      const { data: runs, error } = await supabase
+        .from('runs')
+        .select('id, actual_distance, actual_time, actual_pace, scheduled_date')
+        .eq('user_id', userId)
+        .eq('completed', true)
+        .not('actual_distance', 'is', null)
+        .not('actual_time', 'is', null)
+
+      if (error) throw error
+
+      // Update best performances for each run
+      for (const run of runs || []) {
+        await updateBestPerformances(
+          supabase,
+          userId,
+          run.id,
+          run.actual_distance,
+          run.actual_time,
+          run.actual_pace || '',
+          run.scheduled_date
+        )
+      }
+
+      // Refresh the display
+      await fetchBestPerformances()
+    } catch (error) {
+      console.error('Error refreshing best performances:', error)
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -103,11 +143,22 @@ export default function BestPerformances({ userId }: BestPerformancesProps) {
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-6">
-      <div className="flex items-center gap-3 mb-6">
-        <Trophy className="w-6 h-6 text-primary-600" />
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-          Best Performances
-        </h2>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <Trophy className="w-6 h-6 text-primary-600" />
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+            Best Performances
+          </h2>
+        </div>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          title="Refresh best performances from all completed runs"
+        >
+          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+          {refreshing ? 'Refreshing...' : 'Refresh'}
+        </button>
       </div>
 
       <div className="space-y-6">

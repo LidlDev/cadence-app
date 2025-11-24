@@ -227,8 +227,8 @@ export default function ProfileClient({ user, profile, stravaConnected, stravaAt
                   🔄 Refresh Strava Data
                 </h3>
                 <p className="text-amber-800 dark:text-amber-300 text-sm">
-                  Use this to re-sync all your Strava-linked runs and populate missing detailed data (heart rate, elevation, cadence, etc.).
-                  This is useful if you linked runs before we added support for detailed analytics.
+                  Use this to re-sync all your Strava-linked runs and populate missing detailed data (heart rate, elevation, cadence, descriptions, etc.).
+                  This is useful if you linked runs before we added support for detailed analytics or activity descriptions.
                 </p>
               </div>
             </div>

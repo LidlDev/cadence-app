@@ -100,6 +100,7 @@ async function handleNewActivity(event: any) {
       actual_time: timeFormatted,
       actual_pace: pace,
       strava_activity_id: activity.id,
+      strava_description: activity.description || null,
     })
     .eq('user_id', tokenData.user_id)
     .eq('scheduled_date', runDate)

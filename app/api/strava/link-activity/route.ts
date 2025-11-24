@@ -172,6 +172,8 @@ export async function POST(request: NextRequest) {
         // Speed
         average_speed: fullActivity.average_speed ? parseFloat(fullActivity.average_speed.toFixed(2)) : null,
         max_speed: fullActivity.max_speed ? parseFloat(fullActivity.max_speed.toFixed(2)) : null,
+        // Description
+        strava_description: fullActivity.description || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', runId)

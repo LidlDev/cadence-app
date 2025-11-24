@@ -5,6 +5,8 @@ import { X, Heart, Zap, TrendingUp, Mountain, Thermometer, Activity, Footprints,
 import { PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from 'recharts'
 import Toast from '@/components/ui/Toast'
 import { createClient } from '@/lib/supabase/client'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface RunDetailModalProps {
   isOpen: boolean
@@ -160,17 +162,32 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
             </div>
           ) : data ? (
             <div className="space-y-6">
-              {/* Run Notes */}
-              {data.run.notes && (
+              {/* Run Notes & Strava Description */}
+              {(data.run.notes || data.run.strava_description) && (
                 <div className="relative overflow-hidden rounded-xl p-6 bg-gradient-to-br from-orange-50 via-amber-50 to-orange-50 dark:from-orange-900/20 dark:via-amber-900/20 dark:to-orange-900/20 border border-orange-200 dark:border-orange-800">
-                  <div className="relative z-10">
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
-                      <Activity className="w-5 h-5 text-primary-600" />
-                      Run Notes
-                    </h3>
-                    <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
-                      {data.run.notes}
-                    </p>
+                  <div className="relative z-10 space-y-4">
+                    {data.run.notes && (
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
+                          <Activity className="w-5 h-5 text-primary-600" />
+                          Coach Notes
+                        </h3>
+                        <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                          {data.run.notes}
+                        </p>
+                      </div>
+                    )}
+                    {data.run.strava_description && (
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
+                          <Footprints className="w-5 h-5 text-orange-600" />
+                          Your Run Notes
+                        </h3>
+                        <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed italic">
+                          "{data.run.strava_description}"
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -189,10 +206,10 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
                         <p className="text-slate-600 dark:text-slate-400">Analyzing your run performance...</p>
                       </div>
                     ) : (
-                      <div className="prose prose-slate dark:prose-invert max-w-none">
-                        <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
-                          {aiInsights}
-                        </p>
+                      <div className="prose prose-slate dark:prose-invert max-w-none prose-headings:text-slate-900 dark:prose-headings:text-white prose-p:text-slate-700 dark:prose-p:text-slate-300 prose-strong:text-slate-900 dark:prose-strong:text-white prose-ul:text-slate-700 dark:prose-ul:text-slate-300">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {aiInsights || ''}
+                        </ReactMarkdown>
                       </div>
                     )}
                   </div>
