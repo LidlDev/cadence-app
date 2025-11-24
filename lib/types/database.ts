@@ -168,7 +168,7 @@ export interface StravaActivity {
 export interface PersonalBest {
   id: string
   user_id: string
-  distance: number
+  distance: string
   distance_unit: string
   time: string
   pace: string | null
