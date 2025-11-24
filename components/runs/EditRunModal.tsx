@@ -2,7 +2,7 @@
 
 import { Run } from '@/lib/types/database'
 import { useState, useEffect } from 'react'
-import { X, Calendar, MapPin, Clock, Activity, Zap } from 'lucide-react'
+import { X, Calendar, MapPin, Clock, Activity, Zap, Link as LinkIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 
@@ -11,9 +11,10 @@ interface EditRunModalProps {
   isOpen: boolean
   onClose: () => void
   onUpdate: () => void
+  onLinkStrava?: () => void
 }
 
-export default function EditRunModal({ run, isOpen, onClose, onUpdate }: EditRunModalProps) {
+export default function EditRunModal({ run, isOpen, onClose, onUpdate, onLinkStrava }: EditRunModalProps) {
   const [formData, setFormData] = useState({
     scheduled_date: run.scheduled_date,
     planned_distance: run.planned_distance?.toString() || '',
@@ -199,6 +200,19 @@ export default function EditRunModal({ run, isOpen, onClose, onUpdate }: EditRun
             >
               Delete Run
             </button>
+        
+              {!run.strava_activity_id && onLinkStrava && (
+                <button
+                  type="button"
+                  onClick={onLinkStrava}
+                  className="px-4 py-2 bg-[#FC4C02] hover:bg-[#E34402] text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2 flex-1 sm:flex-none"
+                >
+                  <LinkIcon className="w-4 h-4" />
+                  <span>Link Strava</span>
+                </button>
+              )}
+            </div>
+          
             <div className="flex gap-3">
               <button
                 type="button"
