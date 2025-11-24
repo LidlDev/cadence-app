@@ -184,6 +184,11 @@ export default function RunsClient({ runs, userId }: RunsClientProps) {
             setEditingRun(null)
             router.refresh()
           }}
+          // Add this prop handler
+          onLinkStrava={() => {
+            setLinkingStravaRun(editingRun)
+            setEditingRun(null)
+          }}
         />
       )}
 
