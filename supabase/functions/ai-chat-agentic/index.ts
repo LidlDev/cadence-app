@@ -31,12 +31,16 @@ serve(async (req) => {
       )
     }
 
-    // Create Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-    const supabase = createClient(supabaseUrl, supabaseKey, {
+    // Create Supabase client with user's auth token
+    // In Edge Functions, use the built-in environment variables
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
         headers: { Authorization: authHeader },
+      },
+      auth: {
+        persistSession: false,
       },
     })
 
@@ -306,10 +310,11 @@ You have access to tools that can modify the user's training plan. When the user
       const { jobId } = await req.json()
       if (jobId) {
         const authHeader = req.headers.get('Authorization')
-        const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
-        const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-        const supabase = createClient(supabaseUrl, supabaseKey, {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+        const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
+        const supabase = createClient(supabaseUrl, supabaseAnonKey, {
           global: { headers: { Authorization: authHeader } },
+          auth: { persistSession: false },
         })
 
         await supabase
