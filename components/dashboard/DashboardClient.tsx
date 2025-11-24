@@ -62,6 +62,18 @@ export default function DashboardClient({
 }
 
 function getCurrentWeek(plan: TrainingPlan, runs: Run[]): number {
+  if (!plan) return 1
+
+  // 1. Try to find the next upcoming run (earliest scheduled run that is NOT completed)
+  const nextUpcomingRun = runs
+    .filter(run => !run.completed)
+    .sort((a, b) => new Date(a.scheduled_date).getTime() - new Date(b.scheduled_date).getTime())[0]
+
+  if (nextUpcomingRun) {
+    return nextUpcomingRun.week_number
+  }
+
+  // 2. Fallback: Date-based calculation if no incomplete runs are found
   const today = new Date()
   const startDate = new Date(plan.start_date)
 
@@ -75,4 +87,3 @@ function getCurrentWeek(plan: TrainingPlan, runs: Run[]): number {
   // Clamp between 1 and plan.weeks
   return Math.max(1, Math.min(currentWeek, plan.weeks))
 }
-
