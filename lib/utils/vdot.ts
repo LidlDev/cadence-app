@@ -148,3 +148,20 @@ export function calculateVDOTFromRuns(runs: Array<{ actual_distance: number; act
   return Math.max(...vdots)
 }
 
+/**
+ * Calculate Average VDOT from a set of performances
+ * Useful for aggregating multiple PBs into a single fitness score
+ */
+export function calculateAverageVDOT(performances: Array<{ distance: number; time: string }>): number | null {
+  if (!performances || performances.length === 0) return null
+
+  const vdots = performances.map(p => {
+    const timeSeconds = timeToSeconds(p.time)
+    return calculateVDOT(p.distance, timeSeconds)
+  }).filter(v => v > 0 && !isNaN(v))
+
+  if (vdots.length === 0) return null
+
+  const sum = vdots.reduce((a, b) => a + b, 0)
+  return Math.round((sum / vdots.length) * 10) / 10
+}
