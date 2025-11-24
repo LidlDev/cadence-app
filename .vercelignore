@@ -1,5 +1,6 @@
-# Ignore Supabase Edge Functions (deployed separately to Supabase)
-supabase/
+# Ignore Supabase Edge Functions directory (deployed separately to Supabase)
+# NOTE: This only ignores ./supabase/, NOT ./lib/supabase/
+/supabase/
 
 # Ignore Supabase local development files
 .supabase/
@@ -7,6 +8,6 @@ supabase/
 # Ignore deployment scripts
 deploy-edge-functions.sh
 
-# Ignore Supabase-specific documentation
-supabase-ai-jobs-schema.sql
+# Ignore Supabase-specific SQL files
+supabase-*.sql
 
