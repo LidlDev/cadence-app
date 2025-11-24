@@ -8,7 +8,7 @@ const openai = new OpenAI({
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { runId: string } }
+  { params }: { params: Promise<{ runId: string }> }
 ) {
   try {
     const supabase = await createClient()
@@ -24,7 +24,7 @@ export async function POST(
       }, { status: 500 })
     }
 
-    const { runId } = params
+    const { runId } = await params
 
     // Fetch the run data
     const { data: run, error: runError } = await supabase
