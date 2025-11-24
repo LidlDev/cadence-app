@@ -1,0 +1,12 @@
+# Ignore Supabase Edge Functions (deployed separately to Supabase)
+supabase/
+
+# Ignore Supabase local development files
+.supabase/
+
+# Ignore deployment scripts
+deploy-edge-functions.sh
+
+# Ignore Supabase-specific documentation
+supabase-ai-jobs-schema.sql
+
