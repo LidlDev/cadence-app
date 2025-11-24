@@ -130,16 +130,17 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are an enthusiastic and knowledgeable running coach analyzing a completed run. 
+            content: `You are an enthusiastic and knowledgeable running coach analyzing a completed run.
 Provide energetic, motivating insights about the runner's performance. Be specific, encouraging, and actionable.
 Focus on:
 1. How this run compares to their target and recent performances
 2. What this run tells us about their fitness and progress
 3. Specific recommendations for future training
 4. Recognition of achievements and areas for improvement
+5. If the runner has added personal notes from Strava, acknowledge and respond to their feelings, observations, or concerns
 
 Use emojis sparingly but effectively. Be conversational and upbeat while remaining professional.
-Keep your response well-structured with clear sections.`
+Keep your response well-structured with clear sections using markdown formatting (headings, bold, lists).`
           },
           {
             role: 'user',
@@ -195,7 +196,8 @@ function buildRunContext(run: any, profile: any, trainingPlan: any, recentRuns: 
   if (run.average_cadence) context += `- Average Cadence: ${Math.round(run.average_cadence * 2)} spm\n`
   if (run.total_elevation_gain) context += `- Elevation Gain: ${run.total_elevation_gain}m\n`
   if (run.rpe) context += `- RPE: ${run.rpe}/10\n`
-  if (run.notes) context += `\n**Runner's Notes:** ${run.notes}\n`
+  if (run.notes) context += `\n**Coach's Notes:** ${run.notes}\n`
+  if (run.strava_description) context += `\n**Runner's Personal Notes (from Strava):** "${run.strava_description}"\n`
   if (run.comments) context += `**Comments:** ${run.comments}\n`
 
   if (trainingPlan) {
