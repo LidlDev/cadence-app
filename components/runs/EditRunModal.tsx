@@ -192,15 +192,16 @@ export default function EditRunModal({ run, isOpen, onClose, onUpdate, onLinkStr
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-700">
-            <button
-              type="button"
-              onClick={handleDelete}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
-            >
-              Delete Run
-            </button>
-        
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+            <div className="flex gap-3 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors flex-1 sm:flex-none text-center"
+              >
+                Delete Run
+              </button>
+         
               {!run.strava_activity_id && onLinkStrava && (
                 <button
                   type="button"
@@ -213,18 +214,18 @@ export default function EditRunModal({ run, isOpen, onClose, onUpdate, onLinkStr
               )}
             </div>
           
-            <div className="flex gap-3">
+            <div className="flex gap-3 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-6 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                className="px-6 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex-1 sm:flex-none"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-none"
               >
                 {isSaving ? 'Saving...' : 'Save Changes'}
               </button>
