@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 /**
  * Training Plan Modification API
@@ -10,13 +11,37 @@ export async function POST(request: NextRequest) {
   try {
     const { action, params } = await request.json()
 
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    // Check if request has Authorization header (from Edge Function)
+    const authHeader = request.headers.get('Authorization')
+    let supabase
+    let user
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      // JWT-based auth from Edge Function
+      const jwt = authHeader.replace('Bearer ', '')
+      supabase = createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          global: {
+            headers: { Authorization: authHeader },
+          },
+        }
+      )
+      const { data: { user: jwtUser }, error: userError } = await supabase.auth.getUser(jwt)
+      if (userError || !jwtUser) {
+        console.error('JWT auth failed:', userError)
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      user = jwtUser
+    } else {
+      // Cookie-based auth from browser
+      supabase = await createClient()
+      const { data: { user: cookieUser } } = await supabase.auth.getUser()
+      if (!cookieUser) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      user = cookieUser
     }
 
     // Get active training plan
