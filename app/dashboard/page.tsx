@@ -16,12 +16,12 @@ export default async function DashboardPage() {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
   const [upcomingRunsData, recentRunsData, pbsData, planData] = await Promise.all([
-    // Only fetch upcoming runs (next 30 days)
+    // CHANGE: Fetch ALL incomplete runs (overdue + upcoming) to determine correct plan progress
     supabase
       .from('runs')
       .select('*')
       .eq('user_id', user.id)
-      .gte('scheduled_date', today)
+      .eq('completed', false)
       .order('scheduled_date', { ascending: true })
       .limit(50),
     // Only fetch recent completed runs (last 30 days)
@@ -43,10 +43,9 @@ export default async function DashboardPage() {
   return (
     <DashboardClient
       runs={runs}
-      stravaActivities={[]} // Remove strava_activities table dependency
+      stravaActivities={[]} 
       personalBests={pbsData.data || []}
       trainingPlan={planData.data}
     />
   )
 }
-
