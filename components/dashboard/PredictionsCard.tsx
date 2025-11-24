@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { TrendingUp, Target } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { calculateVDOTFromRuns, getRacePredictions, timeToSeconds } from '@/lib/utils/vdot'
+import { calculateVDOTFromRuns, getRacePredictions, timeToSeconds, calculateAverageVDOT } from '@/lib/utils/vdot'
 
 interface Prediction {
   distance: string
@@ -15,38 +15,79 @@ export default function PredictionsCard() {
   const [predictions, setPredictions] = useState<Prediction[]>([])
   const [vdot, setVdot] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+  // Add these two new state variables
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isFromPBs, setIsFromPBs] = useState(false)
 
   useEffect(() => {
     fetchPredictions()
   }, [])
 
   const fetchPredictions = async () => {
+    // Only set full loading state if we don't have data yet
+    if (predictions.length === 0) setLoading(true)
+    setIsRefreshing(true)
+
     try {
       const supabase = createClient()
+      let calculatedVDOT: number | null = null
+      let fromPBs = false
 
-      // Fetch completed runs from last 30 days
-      const { data: runs } = await supabase
-        .from('runs')
-        .select('actual_distance, actual_time, scheduled_date')
-        .eq('completed', true)
-        .not('actual_time', 'is', null)
-        .order('scheduled_date', { ascending: false })
-        .limit(50)
+      // 1. Try to calculate average VDOT from Personal Bests first
+      const { data: pbs } = await supabase
+        .from('personal_bests')
+        .select('distance, time')
+        .eq('is_target', false)
 
-      if (!runs || runs.length === 0) {
-        setLoading(false)
-        return
+      if (pbs && pbs.length > 0) {
+        const validPBs = pbs.map(pb => {
+          // Convert string distances to km numbers
+          let dist = parseFloat(pb.distance)
+          
+          // Handle standard labels
+          if (pb.distance === '5K') dist = 5
+          else if (pb.distance === '10K') dist = 10
+          else if (pb.distance === 'Half Marathon') dist = 21.0975
+          else if (pb.distance === 'Marathon') dist = 42.195
+          
+          // If it didn't parse and isn't a known string, skip
+          if (isNaN(dist) || dist === 0) return null
+
+          return {
+            distance: dist,
+            time: pb.time
+          }
+        }).filter(item => item !== null) as { distance: number, time: string }[]
+
+        if (validPBs.length > 0) {
+          calculatedVDOT = calculateAverageVDOT(validPBs)
+          if (calculatedVDOT) fromPBs = true
+        }
       }
 
-      // Calculate VDOT from recent performances
-      const calculatedVDOT = calculateVDOTFromRuns(runs)
+      // 2. Fallback to recent runs if no PBs available or calculation failed
+      if (!calculatedVDOT) {
+        const { data: runs } = await supabase
+          .from('runs')
+          .select('actual_distance, actual_time, scheduled_date')
+          .eq('completed', true)
+          .not('actual_time', 'is', null)
+          .order('scheduled_date', { ascending: false })
+          .limit(50)
+
+        if (runs && runs.length > 0) {
+          calculatedVDOT = calculateVDOTFromRuns(runs)
+        }
+      }
 
       if (!calculatedVDOT) {
         setLoading(false)
+        setIsRefreshing(false)
         return
       }
 
       setVdot(calculatedVDOT)
+      setIsFromPBs(fromPBs)
 
       // Get race predictions
       const racePredictions = getRacePredictions(calculatedVDOT)
@@ -72,15 +113,28 @@ export default function PredictionsCard() {
       console.error('Failed to fetch predictions:', error)
     } finally {
       setLoading(false)
+      setIsRefreshing(false)
     }
   }
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-6">
-      <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-        <Target className="w-6 h-6 text-purple-500" />
-        Race Predictions
-      </h2>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Target className="w-6 h-6 text-purple-500" />
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+            Race Predictions
+          </h2>
+        </div>
+        <button
+          onClick={fetchPredictions}
+          disabled={isRefreshing}
+          className={`p-2 rounded-lg transition-colors hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 ${isRefreshing ? 'animate-spin text-purple-500' : ''}`}
+          title="Recalculate VDOT"
+        >
+          <RefreshCw className="w-5 h-5" />
+        </button>
+      </div>
 
       {loading ? (
         <div className="animate-pulse space-y-3">
@@ -97,7 +151,7 @@ export default function PredictionsCard() {
                 <div>
                   <p className="text-sm text-slate-600 dark:text-slate-400">Your VDOT</p>
                   <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
-                    Based on recent performances
+                    Based on {isFromPBs ? 'average PB performance' : 'recent runs'}
                   </p>
                 </div>
                 <p className="text-4xl font-bold text-purple-600 dark:text-purple-400">
