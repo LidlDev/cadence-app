@@ -1,15 +1,17 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Bot, User, Loader2, Wand2, MessageSquare } from 'lucide-react'
+import { Send, Bot, User, Loader2, Wand2, MessageSquare, Clock } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { createClient } from '@/lib/supabase/client'
 
 interface Message {
   role: 'user' | 'assistant'
   content: string
   modifications_made?: boolean
   function_calls?: string[]
+  processing?: boolean
 }
 
 export default function AIChat() {
@@ -41,86 +43,12 @@ export default function AIChat() {
     setLoading(true)
 
     try {
-      // Use agentic endpoint if agentic mode is enabled
-      const endpoint = agenticMode ? '/api/ai/chat-agentic' : '/api/ai/chat'
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [...messages, userMessage],
-          enableTools: agenticMode,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
-      }
-
-      // Handle agentic response (JSON) vs streaming response
+      // Use Supabase Edge Function for agentic mode (no timeout limits)
+      // Use Vercel API for regular chat (streaming works well)
       if (agenticMode) {
-        const data = await response.json()
-        const assistantMessage: Message = {
-          role: 'assistant',
-          content: data.message,
-          modifications_made: data.modifications_made,
-          function_calls: data.function_calls,
-        }
-        setMessages((prev) => [...prev, assistantMessage])
+        await handleAgenticRequest(userMessage)
       } else {
-        // Handle streaming response
-        const reader = response.body?.getReader()
-        const decoder = new TextDecoder()
-        let fullContent = ''
-        let assistantMessageAdded = false
-
-        if (reader) {
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-
-            const chunk = decoder.decode(value)
-            const lines = chunk.split('\n')
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                const data = line.slice(6)
-                if (data === '[DONE]') {
-                  break
-                }
-                try {
-                  const parsed = JSON.parse(data)
-                  if (parsed.content) {
-                    fullContent += parsed.content
-
-                    // Add assistant message on first content chunk
-                    if (!assistantMessageAdded) {
-                      setMessages((prev) => [...prev, { role: 'assistant', content: fullContent }])
-                      assistantMessageAdded = true
-                    } else {
-                      // Update the last message (assistant) in real-time
-                      setMessages((prev) => {
-                        const newMessages = [...prev]
-                        newMessages[newMessages.length - 1] = {
-                          role: 'assistant',
-                          content: fullContent,
-                        }
-                        return newMessages
-                      })
-                    }
-                  }
-                } catch (e) {
-                  // Skip invalid JSON
-                }
-              }
-            }
-          }
-        }
-
-        if (!fullContent) {
-          throw new Error('No content received from AI')
-        }
+        await handleStreamingRequest(userMessage)
       }
     } catch (error) {
       console.error('Error sending message:', error)
@@ -133,6 +61,127 @@ export default function AIChat() {
       ])
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleAgenticRequest = async (userMessage: Message) => {
+    const supabase = createClient()
+
+    // Get auth session for Edge Function
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      throw new Error('Not authenticated')
+    }
+
+    // Add processing message
+    const processingMessage: Message = {
+      role: 'assistant',
+      content: '🤖 Processing your request... This may take a moment as I analyze your training plan.',
+      processing: true,
+    }
+    setMessages((prev) => [...prev, processingMessage])
+
+    // Call Supabase Edge Function
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const response = await fetch(`${supabaseUrl}/functions/v1/ai-chat-agentic`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages: [...messages, userMessage],
+        enableTools: true,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+    }
+
+    const data = await response.json()
+
+    // Remove processing message and add real response
+    setMessages((prev) => {
+      const withoutProcessing = prev.filter(m => !m.processing)
+      return [
+        ...withoutProcessing,
+        {
+          role: 'assistant',
+          content: data.message,
+          modifications_made: data.modifications_made,
+          function_calls: data.function_calls,
+        },
+      ]
+    })
+  }
+
+  const handleStreamingRequest = async (userMessage: Message) => {
+    const response = await fetch('/api/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [...messages, userMessage],
+      }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+    }
+
+    // Handle streaming response
+    const reader = response.body?.getReader()
+    const decoder = new TextDecoder()
+    let fullContent = ''
+    let assistantMessageAdded = false
+
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value)
+        const lines = chunk.split('\n')
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6)
+            if (data === '[DONE]') {
+              break
+            }
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.content) {
+                fullContent += parsed.content
+
+                // Add assistant message on first content chunk
+                if (!assistantMessageAdded) {
+                  setMessages((prev) => [...prev, { role: 'assistant', content: fullContent }])
+                  assistantMessageAdded = true
+                } else {
+                  // Update the last message (assistant) in real-time
+                  setMessages((prev) => {
+                    const newMessages = [...prev]
+                    newMessages[newMessages.length - 1] = {
+                      role: 'assistant',
+                      content: fullContent,
+                    }
+                    return newMessages
+                  })
+                }
+              }
+            } catch (e) {
+              // Skip invalid JSON
+            }
+          }
+        }
+      }
+    }
+
+    if (!fullContent) {
+      throw new Error('No content received from AI')
     }
   }
 
@@ -213,6 +262,12 @@ export default function AIChat() {
               >
                 {message.role === 'assistant' ? (
                   <>
+                    {message.processing && (
+                      <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+                        <Clock className="w-3 h-3 animate-pulse" />
+                        <span className="italic">Processing with extended timeout...</span>
+                      </div>
+                    )}
                     {message.modifications_made && (
                       <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-purple-700 dark:text-purple-300">
                         <Wand2 className="w-3 h-3" />
