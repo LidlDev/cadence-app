@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, Heart, Zap, TrendingUp, Mountain, Thermometer, Activity, Footprints, Gauge, Clock, BarChart3, RefreshCw, Sparkles } from 'lucide-react'
 import { PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from 'recharts'
 import Toast from '@/components/ui/Toast'
+import { createClient } from '@/lib/supabase/client'
 
 interface RunDetailModalProps {
   isOpen: boolean
@@ -65,8 +66,26 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
   const fetchAIInsights = async () => {
     setLoadingInsights(true)
     try {
-      const response = await fetch(`/api/runs/${runId}/insights`, {
+      const supabase = createClient()
+
+      // Get auth session for Edge Function
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError || !session) {
+        console.error('Session error:', sessionError)
+        return
+      }
+
+      // Call Supabase Edge Function
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+      const response = await fetch(`${supabaseUrl}/functions/v1/ai-run-insights`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          runId: runId,
+        }),
       })
 
       if (!response.ok) {
