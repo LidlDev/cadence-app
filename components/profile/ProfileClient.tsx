@@ -5,6 +5,7 @@ import { User, Activity, Link as LinkIcon, CheckCircle, XCircle, RefreshCw } fro
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import ProfileSettings from './ProfileSettings'
+import { createClient } from '@/lib/supabase/client'
 
 interface ProfileClientProps {
   user: any
@@ -55,9 +56,30 @@ export default function ProfileClient({ user, profile, stravaConnected, stravaAt
     setRefreshResult(null)
 
     try {
-      const response = await fetch('/api/strava/refresh-all-runs', {
-        method: 'POST',
-      })
+      const supabase = createClient()
+
+      // Get the session to pass the JWT token
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session) {
+        setRefreshResult({
+          success: false,
+          message: 'Not authenticated',
+        })
+        return
+      }
+
+      // Call Supabase Edge Function instead of Vercel API route
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/refresh-strava-runs`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      )
 
       const data = await response.json()
 

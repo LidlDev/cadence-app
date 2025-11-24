@@ -13,18 +13,28 @@ export async function updateBestPerformances(
   pace: string,
   date: string
 ) {
-  // Map distance to standard categories
-  const distanceMap: { [key: number]: string } = {
-    1: '1K',
-    5: '5K',
-    10: '10K',
-    21.1: 'Half Marathon',
-    21.0975: 'Half Marathon', // Alternative half marathon distance
-    42.2: 'Marathon',
-    42.195: 'Marathon', // Official marathon distance
+  // Map distance to standard categories with tolerance
+  // Allow small variations (e.g., 5.01km, 5.02km count as 5K)
+  const standardDistances = [
+    { target: 1, label: '1K', tolerance: 0.05 },      // 1K ± 50m
+    { target: 5, label: '5K', tolerance: 0.1 },       // 5K ± 100m
+    { target: 10, label: '10K', tolerance: 0.15 },    // 10K ± 150m
+    { target: 21.0975, label: 'Half Marathon', tolerance: 0.2 }, // Half ± 200m
+    { target: 42.195, label: 'Marathon', tolerance: 0.3 },       // Marathon ± 300m
+  ]
+
+  // Find matching standard distance within tolerance
+  let standardDistance: string | null = null
+  let targetDistance = distance
+
+  for (const std of standardDistances) {
+    if (Math.abs(distance - std.target) <= std.tolerance) {
+      standardDistance = std.label
+      targetDistance = std.target
+      break
+    }
   }
 
-  const standardDistance = distanceMap[distance]
   if (!standardDistance) {
     // Not a standard distance, skip
     console.log(`Skipping best performance update for non-standard distance: ${distance}km`)
@@ -73,7 +83,7 @@ export async function updateBestPerformances(
     run_id: runId,
     user_id: userId,
     distance_label: standardDistance,
-    distance_meters: distance * 1000,
+    distance_meters: targetDistance * 1000,
     time_seconds: newTimeSeconds,
     pace_per_km: pace,
     activity_date: date,
@@ -102,7 +112,7 @@ export async function updateBestPerformances(
     user_id: userId,
     run_id: perf.run_id,
     distance_label: standardDistance,
-    distance_meters: distance * 1000,
+    distance_meters: targetDistance * 1000,
     time_seconds: perf.seconds,
     pace_per_km: perf.pace_per_km,
     activity_date: perf.activity_date,
