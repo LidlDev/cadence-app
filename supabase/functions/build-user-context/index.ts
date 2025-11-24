@@ -30,27 +30,31 @@ serve(async (req) => {
     })
 
     const { userId } = await req.json()
+    console.log('Building context for user:', userId)
 
     // Fetch user profile
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single()
+    console.log('Profile fetched:', !!profile, 'Error:', profileError?.message)
 
     // Fetch recent completed runs
-    const { data: recentRuns } = await supabase
+    const { data: recentRuns, error: recentRunsError } = await supabase
       .from('runs')
       .select('*')
       .eq('user_id', userId)
       .eq('completed', true)
       .order('scheduled_date', { ascending: false })
       .limit(10)
+    console.log('Recent runs fetched:', recentRuns?.length || 0, 'Error:', recentRunsError?.message)
 
     // Fetch upcoming scheduled runs (next 30 days)
     const today = new Date().toISOString().split('T')[0]
     const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-    const { data: upcomingRuns } = await supabase
+    console.log('Fetching upcoming runs from', today, 'to', thirtyDaysFromNow)
+    const { data: upcomingRuns, error: upcomingRunsError } = await supabase
       .from('runs')
       .select('*')
       .eq('user_id', userId)
@@ -59,14 +63,16 @@ serve(async (req) => {
       .lte('scheduled_date', thirtyDaysFromNow)
       .order('scheduled_date', { ascending: true })
       .limit(30)
+    console.log('Upcoming runs fetched:', upcomingRuns?.length || 0, 'Error:', upcomingRunsError?.message)
 
     // Fetch training plan
-    const { data: trainingPlan } = await supabase
+    const { data: trainingPlan, error: trainingPlanError } = await supabase
       .from('training_plans')
       .select('*')
       .eq('user_id', userId)
       .eq('status', 'active')
       .single()
+    console.log('Training plan fetched:', !!trainingPlan, 'Error:', trainingPlanError?.message)
 
     // Fetch memories
     const { data: memories } = await supabase

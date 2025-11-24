@@ -122,6 +122,13 @@ serve(async (req) => {
     if (contextResponse.ok) {
       const contextData = await contextResponse.json()
       systemMessage = contextData.systemMessage || systemMessage
+      console.log('User context loaded successfully')
+      console.log('System message length:', systemMessage.length)
+      console.log('System message preview:', systemMessage.substring(0, 500))
+    } else {
+      console.error('Failed to load user context:', contextResponse.status, contextResponse.statusText)
+      const errorText = await contextResponse.text()
+      console.error('Context error details:', errorText)
     }
 
     const agenticSystemMessage = `${systemMessage}
