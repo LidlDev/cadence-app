@@ -68,10 +68,16 @@ export default function AIChat() {
     const supabase = createClient()
 
     // Get auth session for Edge Function
-    const { data: { session } } = await supabase.auth.getSession()
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    if (sessionError) {
+      console.error('Session error:', sessionError)
+      throw new Error('Failed to get session: ' + sessionError.message)
+    }
     if (!session) {
+      console.error('No session found')
       throw new Error('Not authenticated')
     }
+    console.log('Session obtained, user:', session.user?.email)
 
     // Add processing message
     const processingMessage: Message = {
@@ -96,8 +102,10 @@ export default function AIChat() {
     })
 
     if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+      const errorData = await response.json().catch(() => ({}))
+      console.error('Edge Function error:', errorData)
+      console.error('Response status:', response.status)
+      throw new Error(errorData.error || errorData.details || `HTTP error! status: ${response.status}`)
     }
 
     const data = await response.json()
