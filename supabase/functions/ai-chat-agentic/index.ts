@@ -223,9 +223,11 @@ You have access to tools that can modify the user's training plan. When the user
           let result
           if (modifyResponse.ok) {
             result = await modifyResponse.json()
+            console.log(`Function ${functionName} succeeded:`, result)
           } else {
             const errorText = await modifyResponse.text()
             result = { error: errorText }
+            console.error(`Function ${functionName} failed:`, errorText)
           }
 
           functionResults.push({
@@ -233,6 +235,7 @@ You have access to tools that can modify the user's training plan. When the user
             tool_call_id: toolCall.id,
             content: JSON.stringify(result),
           })
+          console.log(`Function result for ${functionName}:`, JSON.stringify(result))
         } catch (error) {
           console.error(`Error executing ${functionName}:`, error)
           functionResults.push({
