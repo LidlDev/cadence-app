@@ -38,14 +38,27 @@ serve(async (req) => {
       .eq('id', userId)
       .single()
 
-    // Fetch recent runs
+    // Fetch recent completed runs
     const { data: recentRuns } = await supabase
       .from('runs')
       .select('*')
       .eq('user_id', userId)
       .eq('completed', true)
-      .order('date', { ascending: false })
+      .order('scheduled_date', { ascending: false })
       .limit(10)
+
+    // Fetch upcoming scheduled runs (next 30 days)
+    const today = new Date().toISOString().split('T')[0]
+    const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const { data: upcomingRuns } = await supabase
+      .from('runs')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('completed', false)
+      .gte('scheduled_date', today)
+      .lte('scheduled_date', thirtyDaysFromNow)
+      .order('scheduled_date', { ascending: true })
+      .limit(30)
 
     // Fetch training plan
     const { data: trainingPlan } = await supabase
@@ -79,16 +92,30 @@ serve(async (req) => {
       systemMessage += `## Current Training Plan\n`
       systemMessage += `- Plan: ${trainingPlan.name}\n`
       if (trainingPlan.goal_race) systemMessage += `- Goal Race: ${trainingPlan.goal_race}\n`
-      if (trainingPlan.goal_distance) systemMessage += `- Goal Distance: ${trainingPlan.goal_distance} km\n`
+      if (trainingPlan.goal_time) systemMessage += `- Goal Time: ${trainingPlan.goal_time}\n`
+      systemMessage += `- Start Date: ${trainingPlan.start_date}\n`
+      systemMessage += `- End Date: ${trainingPlan.end_date}\n`
       systemMessage += `- Weeks: ${trainingPlan.weeks}\n`
       systemMessage += `\n`
     }
 
+    if (upcomingRuns && upcomingRuns.length > 0) {
+      systemMessage += `## Upcoming Scheduled Runs (Next 30 Days)\n`
+      upcomingRuns.forEach((run: any) => {
+        systemMessage += `- ${run.scheduled_date} (${run.day_of_week}): ${run.run_type}`
+        if (run.planned_distance) systemMessage += ` - ${run.planned_distance}km`
+        if (run.session_type) systemMessage += ` (${run.session_type})`
+        if (run.target_pace) systemMessage += ` @ ${run.target_pace}`
+        systemMessage += `\n`
+      })
+      systemMessage += `\n`
+    }
+
     if (recentRuns && recentRuns.length > 0) {
-      systemMessage += `## Recent Runs (Last 10)\n`
+      systemMessage += `## Recent Completed Runs (Last 10)\n`
       recentRuns.forEach((run: any) => {
-        systemMessage += `- ${run.date}: ${run.distance}km, ${run.run_type}`
-        if (run.pace) systemMessage += `, pace: ${run.pace}`
+        systemMessage += `- ${run.scheduled_date}: ${run.actual_distance || run.planned_distance}km, ${run.run_type}`
+        if (run.actual_pace) systemMessage += `, pace: ${run.actual_pace}`
         systemMessage += `\n`
       })
       systemMessage += `\n`
