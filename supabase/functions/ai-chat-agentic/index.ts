@@ -35,6 +35,10 @@ serve(async (req) => {
     // In Edge Functions, use the built-in environment variables
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!
+
+    // Extract JWT token from Authorization header
+    const jwt = authHeader.replace('Bearer ', '')
+
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
         headers: { Authorization: authHeader },
@@ -44,17 +48,19 @@ serve(async (req) => {
       },
     })
 
-    // Verify user
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    // Verify user by passing the JWT token directly
+    const { data: { user }, error: userError } = await supabase.auth.getUser(jwt)
     if (userError || !user) {
       console.error('Auth error:', userError)
       console.error('User:', user)
       console.error('Auth header present:', !!authHeader)
+      console.error('JWT token length:', jwt?.length)
       return new Response(
         JSON.stringify({
           error: 'Unauthorized',
           details: userError?.message || 'No user found',
-          hasAuthHeader: !!authHeader
+          hasAuthHeader: !!authHeader,
+          jwtLength: jwt?.length
         }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
