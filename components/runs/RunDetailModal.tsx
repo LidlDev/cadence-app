@@ -37,6 +37,13 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
     setLoading(true)
     try {
       const response = await fetch(`/api/runs/${runId}/details`)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Failed to fetch run details:', response.status, errorText)
+        throw new Error(`Failed to fetch run details: ${response.status}`)
+      }
+
       const result = await response.json()
 
       if (result.success) {
@@ -45,6 +52,8 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
         if (result.data.run.ai_insights) {
           setAiInsights(result.data.run.ai_insights)
         }
+      } else {
+        console.error('Run details fetch unsuccessful:', result)
       }
     } catch (error) {
       console.error('Error fetching activity data:', error)
@@ -59,13 +68,22 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
       const response = await fetch(`/api/runs/${runId}/insights`, {
         method: 'POST',
       })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Failed to fetch AI insights:', response.status, errorText)
+        // Don't throw - just log and continue without insights
+        return
+      }
+
       const result = await response.json()
 
-      if (response.ok && result.insights) {
+      if (result.insights) {
         setAiInsights(result.insights)
       }
     } catch (error) {
       console.error('Error fetching AI insights:', error)
+      // Don't throw - insights are optional
     } finally {
       setLoadingInsights(false)
     }
