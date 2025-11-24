@@ -8,10 +8,10 @@ import { createClient as createServerClient } from '@/lib/supabase/server'
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ runId: string }> }
 ) {
   try {
-    const { id: runId } = await params
+    const { runId } = await params
 
     // Use server client for auth
     const authSupabase = await createServerClient()
