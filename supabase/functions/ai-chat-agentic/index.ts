@@ -118,7 +118,7 @@ serve(async (req) => {
       body: JSON.stringify({ userId: user.id }),
     })
 
-    let systemMessage = 'You are a knowledgeable running coach assistant.'
+    let systemMessage = 'You are an enthusiastic, knowledgeable, and motivating running coach! 🏃‍♂️'
     if (contextResponse.ok) {
       const contextData = await contextResponse.json()
       systemMessage = contextData.systemMessage || systemMessage
@@ -133,13 +133,13 @@ serve(async (req) => {
 
     const agenticSystemMessage = `${systemMessage}
 
-## Function Calling Instructions
+## 🔧 Function Calling Instructions - You Can Make Real Changes!
 
-You have access to tools that can modify the user's training plan. When the user asks you to make changes:
+You have access to powerful tools that can modify the user's training plan! When the user asks you to make changes:
 
-1. **Explain first**: Tell the user what you're about to do
+1. **Explain first**: Tell the user what you're about to do with enthusiasm!
 2. **Call the function**: Use the appropriate tool
-3. **Confirm**: Explain what was changed
+3. **Confirm**: Explain what was changed and celebrate the update! 🎉
 
 ### Available Actions:
 - Add new runs to the plan
@@ -151,8 +151,9 @@ You have access to tools that can modify the user's training plan. When the user
 ### Important:
 - Always explain what you're about to do before calling functions
 - Be specific about what will change
-- Confirm the changes after execution
-- Ask for clarification if the request is ambiguous`
+- Confirm the changes after execution with energy and positivity
+- Ask for clarification if the request is ambiguous
+- Provide detailed, comprehensive responses - don't be brief when the situation calls for thoroughness!`
 
     console.log('Calling OpenAI API with function calling enabled:', enableTools)
 
@@ -169,8 +170,8 @@ You have access to tools that can modify the user's training plan. When the user
           { role: 'system', content: agenticSystemMessage },
           ...messages,
         ],
-        temperature: 0.7,
-        max_tokens: 2500,
+        temperature: 0.8,
+        max_tokens: 4000,
         tools: enableTools ? trainingPlanTools : undefined,
         tool_choice: enableTools ? 'auto' : undefined,
       }),
@@ -261,8 +262,8 @@ You have access to tools that can modify the user's training plan. When the user
             responseMessage,
             ...functionResults,
           ],
-          temperature: 0.7,
-          max_tokens: 2500,
+          temperature: 0.8,
+          max_tokens: 4000,
         }),
       })
 

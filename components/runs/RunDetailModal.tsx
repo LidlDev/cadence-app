@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Heart, Zap, TrendingUp, Mountain, Thermometer, Activity, Footprints, Gauge, Clock, BarChart3, RefreshCw } from 'lucide-react'
+import { X, Heart, Zap, TrendingUp, Mountain, Thermometer, Activity, Footprints, Gauge, Clock, BarChart3, RefreshCw, Sparkles } from 'lucide-react'
 import { PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from 'recharts'
 import Toast from '@/components/ui/Toast'
 
@@ -23,10 +23,13 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
   const [data, setData] = useState<ActivityData | null>(null)
   const [recalculating, setRecalculating] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [aiInsights, setAiInsights] = useState<string | null>(null)
+  const [loadingInsights, setLoadingInsights] = useState(false)
 
   useEffect(() => {
     if (isOpen && runId) {
       fetchActivityData()
+      fetchAIInsights()
     }
   }, [isOpen, runId])
 
@@ -38,11 +41,33 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
 
       if (result.success) {
         setData(result.data)
+        // Set AI insights if they exist in the run data
+        if (result.data.run.ai_insights) {
+          setAiInsights(result.data.run.ai_insights)
+        }
       }
     } catch (error) {
       console.error('Error fetching activity data:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchAIInsights = async () => {
+    setLoadingInsights(true)
+    try {
+      const response = await fetch(`/api/runs/${runId}/insights`, {
+        method: 'POST',
+      })
+      const result = await response.json()
+
+      if (response.ok && result.insights) {
+        setAiInsights(result.insights)
+      }
+    } catch (error) {
+      console.error('Error fetching AI insights:', error)
+    } finally {
+      setLoadingInsights(false)
     }
   }
 
@@ -98,6 +123,45 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
             </div>
           ) : data ? (
             <div className="space-y-6">
+              {/* Run Notes */}
+              {data.run.notes && (
+                <div className="relative overflow-hidden rounded-xl p-6 bg-gradient-to-br from-orange-50 via-amber-50 to-orange-50 dark:from-orange-900/20 dark:via-amber-900/20 dark:to-orange-900/20 border border-orange-200 dark:border-orange-800">
+                  <div className="relative z-10">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                      <Activity className="w-5 h-5 text-primary-600" />
+                      Run Notes
+                    </h3>
+                    <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                      {data.run.notes}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* AI Insights */}
+              {(aiInsights || loadingInsights) && (
+                <div className="relative overflow-hidden rounded-xl p-6 bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 dark:from-purple-900/20 dark:via-blue-900/20 dark:to-indigo-900/20 border border-purple-200 dark:border-purple-800">
+                  <div className="relative z-10">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-purple-600" />
+                      AI Performance Insights
+                    </h3>
+                    {loadingInsights ? (
+                      <div className="flex items-center gap-3 py-4">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
+                        <p className="text-slate-600 dark:text-slate-400">Analyzing your run performance...</p>
+                      </div>
+                    ) : (
+                      <div className="prose prose-slate dark:prose-invert max-w-none">
+                        <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                          {aiInsights}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Summary Stats */}
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <StatCard

@@ -64,6 +64,7 @@ export interface Run {
   rpe: number | null
   notes: string | null
   comments: string | null
+  ai_insights: string | null
   strava_activity_id: number | null
   created_at: string
   updated_at: string

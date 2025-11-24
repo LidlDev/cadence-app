@@ -64,9 +64,15 @@ export default function DashboardClient({
 function getCurrentWeek(plan: TrainingPlan, runs: Run[]): number {
   const today = new Date()
   const startDate = new Date(plan.start_date)
-  const diffTime = Math.abs(today.getTime() - startDate.getTime())
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-  const currentWeek = Math.ceil(diffDays / 7)
-  return Math.min(currentWeek, plan.weeks)
+
+  // Calculate the difference in days
+  const diffTime = today.getTime() - startDate.getTime()
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+
+  // Week 1 is days 0-6, Week 2 is days 7-13, etc.
+  const currentWeek = Math.floor(diffDays / 7) + 1
+
+  // Clamp between 1 and plan.weeks
+  return Math.max(1, Math.min(currentWeek, plan.weeks))
 }
 

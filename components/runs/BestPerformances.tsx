@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Trophy, Medal, Award, ExternalLink } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import RunDetailModal from './RunDetailModal'
 
 interface Performance {
   id: string
@@ -22,7 +22,7 @@ interface BestPerformancesProps {
 export default function BestPerformances({ userId }: BestPerformancesProps) {
   const [performances, setPerformances] = useState<{ [key: string]: Performance[] }>({})
   const [loading, setLoading] = useState(true)
-  const router = useRouter()
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
 
   const distances = ['1K', '5K', '10K', 'Half Marathon', 'Marathon']
 
@@ -88,8 +88,7 @@ export default function BestPerformances({ userId }: BestPerformancesProps) {
   }
 
   const handleViewRun = (runId: string) => {
-    // Navigate to runs page and open the run detail modal
-    router.push(`/runs?highlight=${runId}`)
+    setSelectedRunId(runId)
   }
 
   if (loading) {
@@ -159,6 +158,16 @@ export default function BestPerformances({ userId }: BestPerformancesProps) {
           </div>
         ))}
       </div>
+
+      {/* Run Detail Modal */}
+      {selectedRunId && (
+        <RunDetailModal
+          isOpen={!!selectedRunId}
+          onClose={() => setSelectedRunId(null)}
+          runId={selectedRunId}
+          userId={userId}
+        />
+      )}
     </div>
   )
 }

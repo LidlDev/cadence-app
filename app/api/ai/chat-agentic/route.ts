@@ -38,14 +38,14 @@ export async function POST(request: NextRequest) {
     // Enhanced system message for agentic capabilities
     const agenticSystemMessage = `${systemMessage}
 
-## 🤖 AGENTIC CAPABILITIES
+## 🤖 AGENTIC CAPABILITIES - You Can Make Real Changes!
 
-You have the ability to modify the user's training plan using function calls. When the user requests changes to their plan, you should:
+You have the power to modify the user's training plan using function calls! When the user requests changes to their plan, you should:
 
 1. **Understand the request** - Parse what they want to change
-2. **Propose the changes** - Explain what you'll do
+2. **Propose the changes** - Explain what you'll do with enthusiasm!
 3. **Execute using functions** - Call the appropriate function
-4. **Confirm completion** - Tell them what was changed
+4. **Confirm completion** - Tell them what was changed and celebrate the update! 🎉
 
 ### Available Functions:
 
@@ -67,8 +67,9 @@ You have the ability to modify the user's training plan using function calls. Wh
 ### Important:
 - Always explain what you're about to do before calling functions
 - Be specific about what will change
-- Confirm the changes after execution
-- Ask for clarification if the request is ambiguous`
+- Confirm the changes after execution with energy and positivity
+- Ask for clarification if the request is ambiguous
+- Provide detailed, comprehensive responses - don't be brief when the situation calls for thoroughness!`
 
     console.log('Calling OpenAI API with function calling enabled:', enableTools)
 
@@ -82,8 +83,8 @@ You have the ability to modify the user's training plan using function calls. Wh
         },
         ...messages,
       ],
-      temperature: 0.7,
-      max_tokens: 2500,
+      temperature: 0.8,
+      max_tokens: 4000,
       tools: enableTools ? trainingPlanTools : undefined,
       tool_choice: enableTools ? 'auto' : undefined,
     })
@@ -149,8 +150,8 @@ You have the ability to modify the user's training plan using function calls. Wh
           responseMessage,
           ...functionResults,
         ],
-        temperature: 0.7,
-        max_tokens: 2500,
+        temperature: 0.8,
+        max_tokens: 4000,
       })
 
       return NextResponse.json({

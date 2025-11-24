@@ -20,6 +20,7 @@ export default function EditRunModal({ run, isOpen, onClose, onUpdate, onLinkStr
     planned_distance: run.planned_distance?.toString() || '',
     target_pace: run.target_pace || run.planned_pace || '',
     run_type: run.run_type,
+    week_number: run.week_number,
     notes: run.notes || '',
   })
   const [isSaving, setIsSaving] = useState(false)
@@ -30,6 +31,7 @@ export default function EditRunModal({ run, isOpen, onClose, onUpdate, onLinkStr
       planned_distance: run.planned_distance?.toString() || '',
       target_pace: run.target_pace || run.planned_pace || '',
       run_type: run.run_type,
+      week_number: run.week_number,
       notes: run.notes || '',
     })
   }, [run])
@@ -57,6 +59,7 @@ export default function EditRunModal({ run, isOpen, onClose, onUpdate, onLinkStr
           planned_distance: parsedDistance,
           target_pace: formData.target_pace || null,
           run_type: formData.run_type,
+          week_number: formData.week_number,
           notes: formData.notes || null,
         })
         .eq('id', run.id)
@@ -126,23 +129,40 @@ export default function EditRunModal({ run, isOpen, onClose, onUpdate, onLinkStr
             />
           </div>
 
-          {/* Run Type */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              <Activity className="w-4 h-4 inline mr-2" />
-              Run Type
-            </label>
-            <select
-              value={formData.run_type}
-              onChange={(e) => setFormData({ ...formData, run_type: e.target.value as 'Easy Run' | 'Tempo Run' | 'Quality Run' | 'Long Run' })}
-              className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              required
-            >
-              <option value="Easy Run">Easy Run</option>
-              <option value="Tempo Run">Tempo Run</option>
-              <option value="Quality Run">Quality Run</option>
-              <option value="Long Run">Long Run</option>
-            </select>
+          {/* Run Type & Week Number Row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                <Activity className="w-4 h-4 inline mr-2" />
+                Run Type
+              </label>
+              <select
+                value={formData.run_type}
+                onChange={(e) => setFormData({ ...formData, run_type: e.target.value as 'Easy Run' | 'Tempo Run' | 'Quality Run' | 'Long Run' })}
+                className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                required
+              >
+                <option value="Easy Run">Easy Run</option>
+                <option value="Tempo Run">Tempo Run</option>
+                <option value="Quality Run">Quality Run</option>
+                <option value="Long Run">Long Run</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                <Calendar className="w-4 h-4 inline mr-2" />
+                Week Number
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={formData.week_number}
+                onChange={(e) => setFormData({ ...formData, week_number: parseInt(e.target.value) })}
+                className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                required
+              />
+            </div>
           </div>
 
           {/* Distance & Pace Row */}
