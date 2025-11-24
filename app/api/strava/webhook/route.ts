@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { updateBestPerformances } from '@/lib/utils/update-best-performances'
 
 // Webhook verification (GET)
 export async function GET(request: NextRequest) {
@@ -83,16 +84,39 @@ async function handleNewActivity(event: any) {
 
   // Try to match with planned run
   const runDate = new Date(activity.start_date).toISOString().split('T')[0]
-  await supabase
+  const distanceKm = activity.distance / 1000
+  const movingTimeSeconds = activity.moving_time
+  const paceSeconds = movingTimeSeconds / distanceKm
+  const paceMinutes = Math.floor(paceSeconds / 60)
+  const paceSecondsRemainder = Math.floor(paceSeconds % 60)
+  const pace = `${paceMinutes}:${paceSecondsRemainder.toString().padStart(2, '0')}`
+  const timeFormatted = `${Math.floor(movingTimeSeconds / 3600)}:${Math.floor((movingTimeSeconds % 3600) / 60).toString().padStart(2, '0')}:${(movingTimeSeconds % 60).toString().padStart(2, '0')}`
+
+  const { data: updatedRuns } = await supabase
     .from('runs')
     .update({
       completed: true,
-      actual_distance: activity.distance / 1000, // Convert to km
-      actual_time: `${Math.floor(activity.moving_time / 60)} minutes`,
+      actual_distance: distanceKm,
+      actual_time: timeFormatted,
+      actual_pace: pace,
       strava_activity_id: activity.id,
     })
     .eq('user_id', tokenData.user_id)
     .eq('scheduled_date', runDate)
     .eq('completed', false)
+    .select('id')
+
+  // Update best performances if a run was matched
+  if (updatedRuns && updatedRuns.length > 0) {
+    await updateBestPerformances(
+      supabase,
+      tokenData.user_id,
+      updatedRuns[0].id,
+      distanceKm,
+      timeFormatted,
+      pace,
+      runDate
+    )
+  }
 }
 

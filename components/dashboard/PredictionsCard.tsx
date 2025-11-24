@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { TrendingUp, Target, RefreshCw } from 'lucide-react'
+import { TrendingUp, Target, RefreshCw, Edit2, Check, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { calculateVDOTFromRuns, getRacePredictions, timeToSeconds, calculateAverageVDOT } from '@/lib/utils/vdot'
 
@@ -18,10 +18,72 @@ export default function PredictionsCard() {
   // Add these two new state variables
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isFromPBs, setIsFromPBs] = useState(false)
+  const [editingDistance, setEditingDistance] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ time: '', pace: '' })
 
   useEffect(() => {
     fetchPredictions()
   }, [])
+
+  const handleEdit = (distance: string, time: string, pace: string) => {
+    setEditingDistance(distance)
+    setEditForm({ time, pace })
+  }
+
+  const handleSave = async (distance: string) => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    // Check if a target already exists for this distance
+    const { data: existingTarget } = await supabase
+      .from('personal_bests')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('distance', distance)
+      .eq('is_target', true)
+      .single()
+
+    if (existingTarget) {
+      // Update existing target
+      const { error } = await supabase
+        .from('personal_bests')
+        .update({
+          time: editForm.time,
+          pace: editForm.pace || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingTarget.id)
+
+      if (!error) {
+        setEditingDistance(null)
+        fetchPredictions() // Refresh to show updated data
+      }
+    } else {
+      // Insert new target
+      const { error } = await supabase
+        .from('personal_bests')
+        .insert({
+          user_id: user.id,
+          distance: distance,
+          distance_unit: 'km',
+          time: editForm.time,
+          pace: editForm.pace || null,
+          is_target: true,
+          achieved_date: new Date().toISOString().split('T')[0],
+        })
+
+      if (!error) {
+        setEditingDistance(null)
+        fetchPredictions() // Refresh to show updated data
+      }
+    }
+  }
+
+  const handleCancel = () => {
+    setEditingDistance(null)
+    setEditForm({ time: '', pace: '' })
+  }
 
   const fetchPredictions = async () => {
     // Only set full loading state if we don't have data yet
@@ -168,19 +230,70 @@ export default function PredictionsCard() {
             </h3>
             {predictions.map((pred, idx) => (
               <div key={idx} className="flex justify-between items-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-100 dark:border-purple-800">
-                <div>
-                  <p className="font-semibold text-slate-900 dark:text-white">
-                    {pred.distance}
-                  </p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    {pred.pace} pace
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-bold text-purple-600 dark:text-purple-400 text-lg">
-                    {pred.predictedTime}
-                  </p>
-                </div>
+                {editingDistance === pred.distance ? (
+                  <>
+                    <div className="flex-1">
+                      <p className="font-semibold text-slate-900 dark:text-white mb-2">
+                        {pred.distance}
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={editForm.time}
+                          onChange={(e) => setEditForm({ ...editForm, time: e.target.value })}
+                          placeholder="Time (e.g., 45:30)"
+                          className="px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                        />
+                        <input
+                          type="text"
+                          value={editForm.pace}
+                          onChange={(e) => setEditForm({ ...editForm, pace: e.target.value })}
+                          placeholder="Pace (e.g., 4:30/km)"
+                          className="px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-1 ml-2">
+                      <button
+                        onClick={() => handleSave(pred.distance)}
+                        className="p-1 hover:bg-green-100 dark:hover:bg-green-900/30 rounded text-green-600 dark:text-green-400"
+                      >
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={handleCancel}
+                        className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-600 dark:text-red-400"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <p className="font-semibold text-slate-900 dark:text-white">
+                        {pred.distance}
+                      </p>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        {pred.pace} pace
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right">
+                        <p className="font-bold text-purple-600 dark:text-purple-400 text-lg">
+                          {pred.predictedTime}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleEdit(pred.distance, pred.predictedTime, pred.pace)}
+                        className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 dark:text-slate-400"
+                        title="Set as target"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
           </div>
