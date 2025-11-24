@@ -135,8 +135,18 @@ export default function AIChat() {
     })
 
     if (!response.ok) {
-      const errorData = await response.json()
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+      console.error('AI chat error:', errorData)
       throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+    }
+
+    // Check if response is actually a stream
+    const contentType = response.headers.get('content-type')
+    if (!contentType?.includes('text/event-stream')) {
+      // Not a streaming response, try to parse as JSON error
+      const errorData = await response.json().catch(() => ({ error: 'Invalid response format' }))
+      console.error('Expected streaming response but got:', contentType, errorData)
+      throw new Error(errorData.error || 'Invalid response format from AI')
     }
 
     // Handle streaming response
@@ -181,6 +191,7 @@ export default function AIChat() {
                 }
               }
             } catch (e) {
+              console.error('Error parsing streaming data:', e, 'Data:', data)
               // Skip invalid JSON
             }
           }
