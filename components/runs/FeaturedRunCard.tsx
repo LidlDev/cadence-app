@@ -40,13 +40,13 @@ export default function FeaturedRunCard({ run, onLogRun, onReschedule }: Feature
 
   const icon = getRunIcon(run.run_type)
 
-  // Prioritize target_pace from DB, fallback to planned_pace
-  const rawPace = run.target_pace || run.planned_pace
-  
+  // Use target_pace from DB
+  const rawPace = run.target_pace
+
   const displayPace = rawPace
     ? (rawPace.toString().includes(':') || rawPace.toString().includes('/'))
-      ? rawPace 
-      : `${rawPace} min/km` 
+      ? rawPace
+      : `${rawPace} min/km`
     : 'N/A'
 
   const handleLogRun = () => {

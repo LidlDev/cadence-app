@@ -18,7 +18,7 @@ export default function EditRunModal({ run, isOpen, onClose, onUpdate, onLinkStr
   const [formData, setFormData] = useState({
     scheduled_date: run.scheduled_date,
     planned_distance: run.planned_distance?.toString() || '',
-    target_pace: run.target_pace || run.planned_pace || '',
+    target_pace: run.target_pace || '',
     run_type: run.run_type,
     week_number: run.week_number,
     notes: run.notes || '',
@@ -29,7 +29,7 @@ export default function EditRunModal({ run, isOpen, onClose, onUpdate, onLinkStr
     setFormData({
       scheduled_date: run.scheduled_date,
       planned_distance: run.planned_distance?.toString() || '',
-      target_pace: run.target_pace || run.planned_pace || '',
+      target_pace: run.target_pace || '',
       run_type: run.run_type,
       week_number: run.week_number,
       notes: run.notes || '',

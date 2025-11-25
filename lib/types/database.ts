@@ -54,7 +54,6 @@ export interface Run {
   run_type: 'Easy Run' | 'Tempo Run' | 'Quality Run' | 'Long Run'
   session_type: string | null
   planned_distance: number
-  planned_pace: string | null
   target_pace: string | null
   scheduled_date: string
   completed: boolean

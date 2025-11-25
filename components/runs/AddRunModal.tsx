@@ -16,7 +16,7 @@ export default function AddRunModal({ isOpen, onClose, onAdded, userId }: AddRun
     scheduled_date: '',
     run_type: 'Easy Run',
     planned_distance: 0,
-    planned_pace: '',
+    target_pace: '',
     week_number: 1,
     day_of_week: 'Mon',
     notes: '',
@@ -120,8 +120,8 @@ export default function AddRunModal({ isOpen, onClose, onAdded, userId }: AddRun
               <input
                 type="text"
                 placeholder="5:30"
-                value={formData.planned_pace}
-                onChange={(e) => setFormData({ ...formData, planned_pace: e.target.value })}
+                value={formData.target_pace}
+                onChange={(e) => setFormData({ ...formData, target_pace: e.target.value })}
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
               />
             </div>
