@@ -21,6 +21,28 @@ interface ActivityData {
   hrZones: any
 }
 
+const MarkdownComponents = {
+  // Headings
+  h1: ({ node, ...props }: any) => <h1 className="text-2xl font-bold mt-6 mb-3 text-slate-900 dark:text-white" {...props} />,
+  h2: ({ node, ...props }: any) => <h2 className="text-xl font-bold mt-5 mb-3 text-slate-900 dark:text-white border-b border-slate-200 dark:border-slate-700 pb-2" {...props} />,
+  h3: ({ node, ...props }: any) => <h3 className="text-lg font-bold mt-4 mb-2 text-slate-900 dark:text-white" {...props} />,
+  h4: ({ node, ...props }: any) => <h4 className="text-base font-bold mt-4 mb-2 text-slate-900 dark:text-white" {...props} />,
+  
+  // Paragraphs and Text
+  p: ({ node, ...props }: any) => <p className="mb-3 leading-relaxed text-slate-700 dark:text-slate-300" {...props} />,
+  strong: ({ node, ...props }: any) => <strong className="font-bold text-slate-900 dark:text-white" {...props} />,
+  em: ({ node, ...props }: any) => <em className="italic text-slate-800 dark:text-slate-200" {...props} />,
+  
+  // Lists
+  ul: ({ node, ...props }: any) => <ul className="list-disc list-outside ml-5 mb-4 space-y-1 text-slate-700 dark:text-slate-300" {...props} />,
+  ol: ({ node, ...props }: any) => <ol className="list-decimal list-outside ml-5 mb-4 space-y-1 text-slate-700 dark:text-slate-300" {...props} />,
+  li: ({ node, ...props }: any) => <li className="pl-1" {...props} />,
+  
+  // Blockquotes and Code
+  blockquote: ({ node, ...props }: any) => <blockquote className="border-l-4 border-primary-500 pl-4 italic my-4 text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 py-2 pr-2 rounded-r" {...props} />,
+  code: ({ node, ...props }: any) => <code className="bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-sm font-mono text-slate-800 dark:text-slate-200" {...props} />,
+}
+
 export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDetailModalProps) {
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<ActivityData | null>(null)
@@ -192,7 +214,7 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
                 </div>
               )}
 
-              {/* AI Insights */}
+              {/* AI Insights Section */}
               {(aiInsights || loadingInsights) && (
                 <div className="relative overflow-hidden rounded-xl p-6 bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 dark:from-purple-900/20 dark:via-blue-900/20 dark:to-indigo-900/20 border border-purple-200 dark:border-purple-800">
                   <div className="relative z-10">
@@ -206,8 +228,11 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
                         <p className="text-slate-600 dark:text-slate-400">Analyzing your run performance...</p>
                       </div>
                     ) : (
-                      <div className="prose prose-slate dark:prose-invert max-w-none prose-headings:text-slate-900 dark:prose-headings:text-white prose-p:text-slate-700 dark:prose-p:text-slate-300 prose-strong:text-slate-900 dark:prose-strong:text-white prose-ul:text-slate-700 dark:prose-ul:text-slate-300">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      <div className="text-sm"> {/* Removed 'prose' class as we are handling it manually now */}
+                        <ReactMarkdown 
+                          remarkPlugins={[remarkGfm]}
+                          components={MarkdownComponents} // <--- Add this prop
+                        >
                           {aiInsights || ''}
                         </ReactMarkdown>
                       </div>
