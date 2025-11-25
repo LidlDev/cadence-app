@@ -51,7 +51,7 @@ export interface Run {
   training_plan_id: string | null
   week_number: number
   day_of_week: string
-  run_type: 'Easy Run' | 'Tempo Run' | 'Quality Run' | 'Long Run'
+  run_type: 'Easy Run' | 'Tempo Run' | 'Quality Run' | 'Long Run' | 'Fartlek' | 'Interval' | 'Hill Repeats'
   session_type: string | null
   planned_distance: number
   target_pace: string | null

@@ -151,14 +151,38 @@ serve(async (req) => {
 
 **CRITICAL: Understand the run type before judging performance!**
 
-### For Interval/Fartlek/Quality Runs:
+### For Interval Runs:
 - DO NOT judge based on average pace alone - these runs are SUPPOSED to have varied pacing
-- Look at the detected intervals/surges in the granular pace data
+- Look at the "Planned Workout Structure" and "Detected hard effort segments"
 - Evaluate if the hard efforts hit the target pace (even if average pace is slower)
-- Example: A fartlek with 5:10/km target might have 5:47/km average, but if the "on" intervals averaged 4:45/km, that's EXCELLENT execution!
-- Praise proper execution of intervals even if overall average seems slow
-- Check heart rate zones - intervals should show time in zones 4-5
-- Look for pacing strategy - did they maintain quality throughout or fade?
+- Check if the number of detected efforts matches the planned workout (e.g., 6x1km should show 6 efforts)
+- Analyze interval consistency - are the paces similar across all intervals?
+- Check for fading - did pace drop off in later intervals?
+- Heart rate zones should show significant time in zones 4-5 during efforts
+- Recovery between intervals is just as important as the hard efforts
+
+### For Fartlek Runs:
+- These are unstructured speed play - expect high pace variability
+- Look for the planned structure (e.g., "2 on 2 off" means 2min hard, 2min easy)
+- Evaluate if detected surges match the planned pattern
+- The "on" portions should be significantly faster than average pace
+- Don't penalize slower average pace - that's expected with recovery periods
+- Check if they maintained quality throughout or faded
+- Heart rate should spike during "on" portions and recover during "off" portions
+
+### For Hill Repeats:
+- Pace will be slower than flat running - this is NORMAL
+- Look for repeated efforts in the pace data
+- Elevation gain is a key metric - should be significant
+- Heart rate zones 4-5 indicate proper effort
+- Downhill recovery pace should be easy
+- Consistency across repeats is important
+
+### For Quality Run (Legacy):
+- This is an older run type that has been replaced by Interval, Fartlek, and Hill Repeats
+- Treat it as a general structured workout
+- Look at the notes/description to understand the intended workout
+- Apply appropriate analysis based on what the workout actually was
 
 ### For Easy/Recovery Runs:
 - These should be SLOW - praise restraint if they kept it easy
@@ -278,7 +302,7 @@ function buildRunContext(run: any, profile: any, trainingPlan: any, recentRuns: 
     const paceStream = activityStreams.find((s: any) => s.stream_type === 'velocity_smooth')
     if (paceStream && paceStream.data) {
       const velocities = paceStream.data as number[]
-      context += analyzeGranularPace(velocities, run.run_type, run.session_type)
+      context += analyzeGranularPace(velocities, run.run_type, run.session_type, run.notes, run.strava_description)
     }
 
     // Analyze heart rate stream
@@ -327,7 +351,7 @@ function buildRunContext(run: any, profile: any, trainingPlan: any, recentRuns: 
 /**
  * Analyze granular pace data to detect intervals, surges, pacing strategy
  */
-function analyzeGranularPace(velocities: number[], runType: string, sessionType: string | null): string {
+function analyzeGranularPace(velocities: number[], runType: string, sessionType: string | null, notes?: string, description?: string): string {
   if (velocities.length === 0) return ''
 
   let analysis = `\n### Pace Analysis (meter-by-meter)\n`
@@ -345,37 +369,160 @@ function analyzeGranularPace(velocities: number[], runType: string, sessionType:
   analysis += `- Pace Range: ${formatPace(minPace)} to ${formatPace(maxPace)} per km\n`
   analysis += `- Pace Variability: ${stdDev.toFixed(2)} min/km (${stdDev < 0.3 ? 'very consistent' : stdDev < 0.6 ? 'consistent' : stdDev < 1.0 ? 'moderate variation' : 'high variation'})\n`
 
-  // Detect intervals/surges for fartlek and interval runs
-  if (runType.toLowerCase().includes('fartlek') || runType.toLowerCase().includes('interval') || sessionType?.toLowerCase().includes('interval')) {
-    const intervals = detectIntervals(paces)
-    if (intervals.length > 0) {
-      analysis += `\n**Detected ${intervals.length} interval/surge segments:**\n`
-      intervals.forEach((interval, i) => {
-        analysis += `  ${i + 1}. ${formatPace(interval.avgPace)}/km for ~${interval.duration}s (${interval.type})\n`
-      })
+  // Parse workout description from notes or description
+  const workoutText = `${notes || ''} ${description || ''}`
+  const workoutStructure = parseWorkoutDescription(workoutText)
+
+  // Detect intervals/surges for structured workouts
+  if (runType === 'Fartlek' || runType === 'Interval' || runType === 'Hill Repeats' ||
+      runType.toLowerCase().includes('fartlek') || runType.toLowerCase().includes('interval') ||
+      sessionType?.toLowerCase().includes('interval')) {
+
+    const intervals = detectIntervals(paces, workoutStructure)
+
+    if (workoutStructure) {
+      analysis += `\n**Planned Workout Structure:**\n`
+      if (workoutStructure.type === 'intervals' && workoutStructure.reps && workoutStructure.distance) {
+        analysis += `- ${workoutStructure.reps} x ${workoutStructure.distance}m intervals\n`
+      } else if (workoutStructure.type === 'fartlek' && workoutStructure.onTime && workoutStructure.offTime) {
+        analysis += `- Fartlek: ${workoutStructure.onTime}s hard / ${workoutStructure.offTime}s easy\n`
+      }
     }
-  }
 
-  // Analyze pacing strategy (negative split, positive split, even)
-  const firstHalfPace = paces.slice(0, Math.floor(paces.length / 2)).reduce((a, b) => a + b, 0) / Math.floor(paces.length / 2)
-  const secondHalfPace = paces.slice(Math.floor(paces.length / 2)).reduce((a, b) => a + b, 0) / (paces.length - Math.floor(paces.length / 2))
-  const paceDiff = secondHalfPace - firstHalfPace
+    if (intervals.length > 0) {
+      analysis += `\n**Detected ${intervals.length} hard effort segments:**\n`
+      intervals.forEach((interval, i) => {
+        analysis += `  ${i + 1}. ${formatPace(interval.avgPace)}/km for ${interval.duration}s`
 
-  if (Math.abs(paceDiff) < 0.1) {
-    analysis += `- Pacing Strategy: Even split (excellent pacing control)\n`
-  } else if (paceDiff < 0) {
-    analysis += `- Pacing Strategy: Negative split (${formatPace(Math.abs(paceDiff))}/km faster in 2nd half - great execution!)\n`
+        // Compare to planned structure if available
+        if (workoutStructure?.type === 'intervals' && workoutStructure.reps) {
+          if (i < workoutStructure.reps) {
+            analysis += ` ✓`
+          }
+        } else if (workoutStructure?.type === 'fartlek' && workoutStructure.onTime) {
+          const expectedDuration = workoutStructure.onTime
+          const diff = Math.abs(interval.duration - expectedDuration)
+          if (diff < 10) {
+            analysis += ` ✓ (matches planned ${expectedDuration}s)`
+          } else if (interval.duration < expectedDuration - 10) {
+            analysis += ` ⚠️ (${expectedDuration - interval.duration}s shorter than planned)`
+          }
+        }
+        analysis += `\n`
+      })
+
+      // Summary of interval quality
+      if (workoutStructure?.reps && intervals.length !== workoutStructure.reps) {
+        analysis += `\n⚠️ Detected ${intervals.length} efforts vs ${workoutStructure.reps} planned\n`
+      }
+
+      // Analyze consistency across intervals
+      if (intervals.length >= 3) {
+        const intervalPaces = intervals.map(i => i.avgPace)
+        const intervalAvg = intervalPaces.reduce((a, b) => a + b, 0) / intervalPaces.length
+        const intervalStdDev = Math.sqrt(intervalPaces.reduce((sq, n) => sq + Math.pow(n - intervalAvg, 2), 0) / intervalPaces.length)
+
+        if (intervalStdDev < 0.1) {
+          analysis += `- Interval Consistency: Excellent! (±${(intervalStdDev * 60).toFixed(0)}s variation)\n`
+        } else if (intervalStdDev < 0.2) {
+          analysis += `- Interval Consistency: Good (±${(intervalStdDev * 60).toFixed(0)}s variation)\n`
+        } else {
+          analysis += `- Interval Consistency: Variable (±${(intervalStdDev * 60).toFixed(0)}s variation) - work on even pacing\n`
+        }
+
+        // Check for fading
+        const firstThird = intervalPaces.slice(0, Math.ceil(intervalPaces.length / 3))
+        const lastThird = intervalPaces.slice(-Math.ceil(intervalPaces.length / 3))
+        const firstAvg = firstThird.reduce((a, b) => a + b, 0) / firstThird.length
+        const lastAvg = lastThird.reduce((a, b) => a + b, 0) / lastThird.length
+
+        if (lastAvg > firstAvg + 0.15) {
+          analysis += `- Fatigue Pattern: Slowed by ${formatPace(lastAvg - firstAvg)}/km in later intervals - consider easier start\n`
+        } else if (lastAvg < firstAvg - 0.15) {
+          analysis += `- Fatigue Pattern: Negative split! Got ${formatPace(firstAvg - lastAvg)}/km faster - excellent energy management!\n`
+        } else {
+          analysis += `- Fatigue Pattern: Maintained pace throughout - great execution!\n`
+        }
+      }
+    } else {
+      analysis += `\n⚠️ No distinct hard efforts detected in pace data. This may indicate:\n`
+      analysis += `  - Workout was more tempo-paced than interval-based\n`
+      analysis += `  - Intervals were not significantly faster than recovery pace\n`
+      analysis += `  - GPS data quality issues\n`
+    }
   } else {
-    analysis += `- Pacing Strategy: Positive split (${formatPace(paceDiff)}/km slower in 2nd half - may have started too fast)\n`
+    // For non-structured runs, analyze pacing strategy
+    const firstHalfPace = paces.slice(0, Math.floor(paces.length / 2)).reduce((a, b) => a + b, 0) / Math.floor(paces.length / 2)
+    const secondHalfPace = paces.slice(Math.floor(paces.length / 2)).reduce((a, b) => a + b, 0) / (paces.length - Math.floor(paces.length / 2))
+    const paceDiff = secondHalfPace - firstHalfPace
+
+    if (Math.abs(paceDiff) < 0.1) {
+      analysis += `- Pacing Strategy: Even split (excellent pacing control)\n`
+    } else if (paceDiff < 0) {
+      analysis += `- Pacing Strategy: Negative split (${formatPace(Math.abs(paceDiff))}/km faster in 2nd half - great execution!)\n`
+    } else {
+      analysis += `- Pacing Strategy: Positive split (${formatPace(paceDiff)}/km slower in 2nd half - may have started too fast)\n`
+    }
   }
 
   return analysis
 }
 
 /**
- * Detect intervals in pace data
+ * Parse workout description to extract structure
+ * Examples: "6x1km", "8x400m", "2 on 2 off", "5x (3min hard, 2min easy)"
  */
-function detectIntervals(paces: number[]): Array<{avgPace: number, duration: number, type: string}> {
+function parseWorkoutDescription(description: string): {
+  type: 'intervals' | 'fartlek' | 'unknown'
+  reps?: number
+  distance?: number
+  onTime?: number
+  offTime?: number
+} | null {
+  if (!description) return null
+
+  const lower = description.toLowerCase()
+
+  // Match patterns like "6x1km", "8x400m", "10 x 800"
+  const intervalMatch = lower.match(/(\d+)\s*x\s*(\d+(?:\.\d+)?)\s*(km|k|m|meters?)?/)
+  if (intervalMatch) {
+    const reps = parseInt(intervalMatch[1])
+    const distance = parseFloat(intervalMatch[2])
+    const unit = intervalMatch[3]
+
+    return {
+      type: 'intervals',
+      reps,
+      distance: unit?.startsWith('k') ? distance * 1000 : distance
+    }
+  }
+
+  // Match fartlek patterns like "2 on 2 off", "3min on 2min off", "90s hard 60s easy"
+  const fartlekMatch = lower.match(/(\d+)\s*(min|mins?|minutes?|s|sec|seconds?)?\s*(on|hard|fast)\s*(\d+)\s*(min|mins?|minutes?|s|sec|seconds?)?\s*(off|easy|recovery)/)
+  if (fartlekMatch) {
+    const onValue = parseInt(fartlekMatch[1])
+    const onUnit = fartlekMatch[2]
+    const offValue = parseInt(fartlekMatch[4])
+    const offUnit = fartlekMatch[5]
+
+    // Convert to seconds
+    const onTime = onUnit?.startsWith('m') ? onValue * 60 : onValue
+    const offTime = offUnit?.startsWith('m') ? offValue * 60 : offValue
+
+    return {
+      type: 'fartlek',
+      onTime,
+      offTime
+    }
+  }
+
+  return null
+}
+
+/**
+ * Detect intervals in pace data with optional workout structure
+ */
+function detectIntervals(paces: number[], workoutStructure?: ReturnType<typeof parseWorkoutDescription>): Array<{avgPace: number, duration: number, type: string}> {
   const intervals: Array<{avgPace: number, duration: number, type: string}> = []
   const avgPace = paces.reduce((a, b) => a + b, 0) / paces.length
 
@@ -383,8 +530,14 @@ function detectIntervals(paces: number[]): Array<{avgPace: number, duration: num
   let intervalStart = 0
   let intervalPaces: number[] = []
 
+  // Adjust threshold based on workout type
+  let threshold = 0.3 // Default: 18+ seconds faster than average
+  if (workoutStructure?.type === 'fartlek') {
+    threshold = 0.2 // More sensitive for fartlek
+  }
+
   for (let i = 0; i < paces.length; i++) {
-    const isHard = paces[i] < avgPace - 0.3 // 18+ seconds faster than average
+    const isHard = paces[i] < avgPace - threshold
 
     if (isHard && !inInterval) {
       // Start of hard interval

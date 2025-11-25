@@ -138,14 +138,18 @@ export default function EditRunModal({ run, isOpen, onClose, onUpdate, onLinkStr
               </label>
               <select
                 value={formData.run_type}
-                onChange={(e) => setFormData({ ...formData, run_type: e.target.value as 'Easy Run' | 'Tempo Run' | 'Quality Run' | 'Long Run' })}
+                onChange={(e) => setFormData({ ...formData, run_type: e.target.value })}
                 className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 required
               >
                 <option value="Easy Run">Easy Run</option>
                 <option value="Tempo Run">Tempo Run</option>
-                <option value="Quality Run">Quality Run</option>
                 <option value="Long Run">Long Run</option>
+                <option value="Fartlek">Fartlek</option>
+                <option value="Interval">Interval</option>
+                <option value="Hill Repeats">Hill Repeats</option>
+                {/* Keep Quality Run option if it's already set, but don't show for new runs */}
+                {run.run_type === 'Quality Run' && <option value="Quality Run">Quality Run (Legacy)</option>}
               </select>
             </div>
 

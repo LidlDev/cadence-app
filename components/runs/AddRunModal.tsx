@@ -93,8 +93,10 @@ export default function AddRunModal({ isOpen, onClose, onAdded, userId }: AddRun
             >
               <option>Easy Run</option>
               <option>Tempo Run</option>
-              <option>Quality Run</option>
               <option>Long Run</option>
+              <option>Fartlek</option>
+              <option>Interval</option>
+              <option>Hill Repeats</option>
             </select>
           </div>
 
