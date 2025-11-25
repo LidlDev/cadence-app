@@ -115,8 +115,23 @@ serve(async (req) => {
       .order('scheduled_date', { ascending: false })
       .limit(10)
 
-    // Build context for AI
-    const context = buildRunContext(run, profile, trainingPlan, recentRuns || [])
+    // Fetch activity streams for granular data (pace, HR, cadence per meter)
+    const { data: activityStreams } = await supabase
+      .from('activity_streams')
+      .select('*')
+      .eq('run_id', runId)
+      .eq('user_id', user.id)
+
+    // Fetch heart rate zones
+    const { data: hrZones } = await supabase
+      .from('activity_heart_rate_zones')
+      .select('*')
+      .eq('run_id', runId)
+      .eq('user_id', user.id)
+      .single()
+
+    // Build context for AI with granular data
+    const context = buildRunContext(run, profile, trainingPlan, recentRuns || [], activityStreams || [], hrZones)
 
     // Generate insights using OpenAI
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -130,17 +145,59 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are an enthusiastic and knowledgeable running coach analyzing a completed run.
-Provide energetic, motivating insights about the runner's performance. Be specific, encouraging, and actionable.
-Focus on:
-1. How this run compares to their target and recent performances
-2. What this run tells us about their fitness and progress
-3. Specific recommendations for future training
-4. Recognition of achievements and areas for improvement
-5. If the runner has added personal notes from Strava, acknowledge and respond to their feelings, observations, or concerns
+            content: `You are an enthusiastic and knowledgeable running coach analyzing a completed run with access to detailed performance data.
 
-Use emojis sparingly but effectively. Be conversational and upbeat while remaining professional.
-Keep your response well-structured with clear sections using markdown formatting (headings, bold, lists).`
+## Your Analysis Approach
+
+**CRITICAL: Understand the run type before judging performance!**
+
+### For Interval/Fartlek/Quality Runs:
+- DO NOT judge based on average pace alone - these runs are SUPPOSED to have varied pacing
+- Look at the detected intervals/surges in the granular pace data
+- Evaluate if the hard efforts hit the target pace (even if average pace is slower)
+- Example: A fartlek with 5:10/km target might have 5:47/km average, but if the "on" intervals averaged 4:45/km, that's EXCELLENT execution!
+- Praise proper execution of intervals even if overall average seems slow
+- Check heart rate zones - intervals should show time in zones 4-5
+- Look for pacing strategy - did they maintain quality throughout or fade?
+
+### For Easy/Recovery Runs:
+- These should be SLOW - praise restraint if they kept it easy
+- Check heart rate zones - should be mostly zone 1-2
+- Consistent, controlled pace is the goal
+- Going too fast on easy days is a common mistake
+
+### For Tempo/Threshold Runs:
+- Should maintain steady pace close to target
+- Heart rate should be mostly zone 3-4
+- Look for even pacing or slight negative split
+- Cardiac drift analysis is important here
+
+### For Long Runs:
+- Endurance is key, not speed
+- Look for pacing consistency and energy management
+- Negative split is a great sign
+- Check for cardiac drift (indicates fueling/hydration)
+
+## Analysis Framework
+
+1. **Run Type Context**: First identify what type of run this was and what success looks like
+2. **Granular Data Analysis**: Use the meter-by-meter pace, heart rate, and cadence data to understand execution
+3. **Target vs Actual**: Compare performance to target IN THE CONTEXT of the run type
+4. **Physiological Response**: Analyze HR zones, cardiac drift, and effort distribution
+5. **Pacing Strategy**: Evaluate splits, surges, and energy management
+6. **Personal Notes**: If the runner shared feelings/observations, acknowledge and respond empathetically
+7. **Actionable Insights**: Provide specific, practical recommendations
+
+## Output Format
+
+Use clear markdown sections:
+- **🎯 Run Execution** - How well did they execute the planned workout?
+- **📊 Performance Analysis** - What the data tells us
+- **💪 Strengths** - What they did well
+- **🔧 Areas for Improvement** - Constructive feedback
+- **🚀 Next Steps** - Specific recommendations
+
+Be energetic and motivating while being technically accurate. Use emojis sparingly but effectively.`
           },
           {
             role: 'user',
@@ -148,7 +205,7 @@ Keep your response well-structured with clear sections using markdown formatting
           }
         ],
         temperature: 0.8,
-        max_tokens: 1000,
+        max_tokens: 1500,
       }),
     })
 
@@ -183,7 +240,7 @@ Keep your response well-structured with clear sections using markdown formatting
   }
 })
 
-function buildRunContext(run: any, profile: any, trainingPlan: any, recentRuns: any[]): string {
+function buildRunContext(run: any, profile: any, trainingPlan: any, recentRuns: any[], activityStreams: any[], hrZones: any): string {
   let context = `Analyze this completed run:\n\n`
 
   context += `## Run Details\n`
@@ -199,6 +256,45 @@ function buildRunContext(run: any, profile: any, trainingPlan: any, recentRuns: 
   if (run.notes) context += `\n**Coach's Notes:** ${run.notes}\n`
   if (run.strava_description) context += `\n**Runner's Personal Notes (from Strava):** "${run.strava_description}"\n`
   if (run.comments) context += `**Comments:** ${run.comments}\n`
+
+  // Add heart rate zones if available
+  if (hrZones) {
+    context += `\n## Heart Rate Zone Distribution\n`
+    const totalTime = (hrZones.zone_1_time || 0) + (hrZones.zone_2_time || 0) + (hrZones.zone_3_time || 0) + (hrZones.zone_4_time || 0) + (hrZones.zone_5_time || 0)
+    if (totalTime > 0) {
+      context += `- Zone 1 (Recovery): ${hrZones.zone_1_time}s (${Math.round(hrZones.zone_1_time / totalTime * 100)}%)\n`
+      context += `- Zone 2 (Aerobic): ${hrZones.zone_2_time}s (${Math.round(hrZones.zone_2_time / totalTime * 100)}%)\n`
+      context += `- Zone 3 (Tempo): ${hrZones.zone_3_time}s (${Math.round(hrZones.zone_3_time / totalTime * 100)}%)\n`
+      context += `- Zone 4 (Threshold): ${hrZones.zone_4_time}s (${Math.round(hrZones.zone_4_time / totalTime * 100)}%)\n`
+      context += `- Zone 5 (Max): ${hrZones.zone_5_time}s (${Math.round(hrZones.zone_5_time / totalTime * 100)}%)\n`
+    }
+  }
+
+  // Add granular stream data analysis
+  if (activityStreams && activityStreams.length > 0) {
+    context += `\n## Granular Performance Data Available\n`
+
+    // Analyze pace stream for intervals/fartlek detection
+    const paceStream = activityStreams.find((s: any) => s.stream_type === 'velocity_smooth')
+    if (paceStream && paceStream.data) {
+      const velocities = paceStream.data as number[]
+      context += analyzeGranularPace(velocities, run.run_type, run.session_type)
+    }
+
+    // Analyze heart rate stream
+    const hrStream = activityStreams.find((s: any) => s.stream_type === 'heartrate')
+    if (hrStream && hrStream.data) {
+      const heartRates = hrStream.data as number[]
+      context += analyzeGranularHeartRate(heartRates, profile?.max_heart_rate)
+    }
+
+    // Analyze cadence stream
+    const cadenceStream = activityStreams.find((s: any) => s.stream_type === 'cadence')
+    if (cadenceStream && cadenceStream.data) {
+      const cadences = cadenceStream.data as number[]
+      context += analyzeGranularCadence(cadences)
+    }
+  }
 
   if (trainingPlan) {
     context += `\n## Training Context\n`
@@ -226,6 +322,171 @@ function buildRunContext(run: any, profile: any, trainingPlan: any, recentRuns: 
   }
 
   return context
+}
+
+/**
+ * Analyze granular pace data to detect intervals, surges, pacing strategy
+ */
+function analyzeGranularPace(velocities: number[], runType: string, sessionType: string | null): string {
+  if (velocities.length === 0) return ''
+
+  let analysis = `\n### Pace Analysis (meter-by-meter)\n`
+
+  // Convert m/s to min/km for each point
+  const paces = velocities.map(v => v > 0 ? 1000 / (v * 60) : 0).filter(p => p > 0 && p < 20)
+
+  if (paces.length === 0) return ''
+
+  const avgPace = paces.reduce((a, b) => a + b, 0) / paces.length
+  const minPace = Math.min(...paces)
+  const maxPace = Math.max(...paces)
+  const stdDev = Math.sqrt(paces.reduce((sq, n) => sq + Math.pow(n - avgPace, 2), 0) / paces.length)
+
+  analysis += `- Pace Range: ${formatPace(minPace)} to ${formatPace(maxPace)} per km\n`
+  analysis += `- Pace Variability: ${stdDev.toFixed(2)} min/km (${stdDev < 0.3 ? 'very consistent' : stdDev < 0.6 ? 'consistent' : stdDev < 1.0 ? 'moderate variation' : 'high variation'})\n`
+
+  // Detect intervals/surges for fartlek and interval runs
+  if (runType.toLowerCase().includes('fartlek') || runType.toLowerCase().includes('interval') || sessionType?.toLowerCase().includes('interval')) {
+    const intervals = detectIntervals(paces)
+    if (intervals.length > 0) {
+      analysis += `\n**Detected ${intervals.length} interval/surge segments:**\n`
+      intervals.forEach((interval, i) => {
+        analysis += `  ${i + 1}. ${formatPace(interval.avgPace)}/km for ~${interval.duration}s (${interval.type})\n`
+      })
+    }
+  }
+
+  // Analyze pacing strategy (negative split, positive split, even)
+  const firstHalfPace = paces.slice(0, Math.floor(paces.length / 2)).reduce((a, b) => a + b, 0) / Math.floor(paces.length / 2)
+  const secondHalfPace = paces.slice(Math.floor(paces.length / 2)).reduce((a, b) => a + b, 0) / (paces.length - Math.floor(paces.length / 2))
+  const paceDiff = secondHalfPace - firstHalfPace
+
+  if (Math.abs(paceDiff) < 0.1) {
+    analysis += `- Pacing Strategy: Even split (excellent pacing control)\n`
+  } else if (paceDiff < 0) {
+    analysis += `- Pacing Strategy: Negative split (${formatPace(Math.abs(paceDiff))}/km faster in 2nd half - great execution!)\n`
+  } else {
+    analysis += `- Pacing Strategy: Positive split (${formatPace(paceDiff)}/km slower in 2nd half - may have started too fast)\n`
+  }
+
+  return analysis
+}
+
+/**
+ * Detect intervals in pace data
+ */
+function detectIntervals(paces: number[]): Array<{avgPace: number, duration: number, type: string}> {
+  const intervals: Array<{avgPace: number, duration: number, type: string}> = []
+  const avgPace = paces.reduce((a, b) => a + b, 0) / paces.length
+
+  let inInterval = false
+  let intervalStart = 0
+  let intervalPaces: number[] = []
+
+  for (let i = 0; i < paces.length; i++) {
+    const isHard = paces[i] < avgPace - 0.3 // 18+ seconds faster than average
+
+    if (isHard && !inInterval) {
+      // Start of hard interval
+      inInterval = true
+      intervalStart = i
+      intervalPaces = [paces[i]]
+    } else if (isHard && inInterval) {
+      // Continue hard interval
+      intervalPaces.push(paces[i])
+    } else if (!isHard && inInterval) {
+      // End of hard interval
+      if (intervalPaces.length >= 30) { // At least 30 seconds
+        const intervalAvg = intervalPaces.reduce((a, b) => a + b, 0) / intervalPaces.length
+        intervals.push({
+          avgPace: intervalAvg,
+          duration: intervalPaces.length,
+          type: 'hard'
+        })
+      }
+      inInterval = false
+      intervalPaces = []
+    }
+  }
+
+  return intervals
+}
+
+/**
+ * Analyze granular heart rate data
+ */
+function analyzeGranularHeartRate(heartRates: number[], maxHR?: number): string {
+  if (heartRates.length === 0) return ''
+
+  let analysis = `\n### Heart Rate Analysis (second-by-second)\n`
+
+  const avgHR = heartRates.reduce((a, b) => a + b, 0) / heartRates.length
+  const minHR = Math.min(...heartRates)
+  const maxHRValue = Math.max(...heartRates)
+
+  analysis += `- HR Range: ${Math.round(minHR)} - ${Math.round(maxHRValue)} bpm\n`
+
+  if (maxHR) {
+    const avgPercent = Math.round((avgHR / maxHR) * 100)
+    const maxPercent = Math.round((maxHRValue / maxHR) * 100)
+    analysis += `- Average HR: ${Math.round(avgHR)} bpm (${avgPercent}% of max)\n`
+    analysis += `- Peak HR: ${Math.round(maxHRValue)} bpm (${maxPercent}% of max)\n`
+
+    // HR drift analysis (cardiac drift)
+    const firstQuarter = heartRates.slice(0, Math.floor(heartRates.length / 4))
+    const lastQuarter = heartRates.slice(Math.floor(heartRates.length * 3 / 4))
+    const firstAvg = firstQuarter.reduce((a, b) => a + b, 0) / firstQuarter.length
+    const lastAvg = lastQuarter.reduce((a, b) => a + b, 0) / lastQuarter.length
+    const drift = lastAvg - firstAvg
+
+    if (drift > 5) {
+      analysis += `- Cardiac Drift: +${Math.round(drift)} bpm (${Math.round((drift / firstAvg) * 100)}% increase - may indicate dehydration or fatigue)\n`
+    } else if (drift < -5) {
+      analysis += `- Cardiac Drift: ${Math.round(drift)} bpm (HR decreased - good recovery or pacing adjustment)\n`
+    } else {
+      analysis += `- Cardiac Drift: Minimal (${Math.round(drift)} bpm - excellent cardiovascular efficiency)\n`
+    }
+  }
+
+  return analysis
+}
+
+/**
+ * Analyze granular cadence data
+ */
+function analyzeGranularCadence(cadences: number[]): string {
+  if (cadences.length === 0) return ''
+
+  let analysis = `\n### Cadence Analysis\n`
+
+  // Cadence is stored as steps per second, multiply by 2 for steps per minute
+  const spmValues = cadences.map(c => c * 2)
+  const avgCadence = spmValues.reduce((a, b) => a + b, 0) / spmValues.length
+  const minCadence = Math.min(...spmValues)
+  const maxCadence = Math.max(...spmValues)
+
+  analysis += `- Average Cadence: ${Math.round(avgCadence)} spm\n`
+  analysis += `- Cadence Range: ${Math.round(minCadence)} - ${Math.round(maxCadence)} spm\n`
+
+  // Optimal cadence is typically 170-180 spm
+  if (avgCadence >= 170 && avgCadence <= 180) {
+    analysis += `- Cadence Assessment: Optimal range (170-180 spm) - excellent form!\n`
+  } else if (avgCadence < 170) {
+    analysis += `- Cadence Assessment: Below optimal (${Math.round(170 - avgCadence)} spm lower) - consider increasing turnover\n`
+  } else {
+    analysis += `- Cadence Assessment: Above typical range - may indicate short stride length\n`
+  }
+
+  return analysis
+}
+
+/**
+ * Format pace from decimal minutes to MM:SS
+ */
+function formatPace(pace: number): string {
+  const minutes = Math.floor(pace)
+  const seconds = Math.round((pace - minutes) * 60)
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
 

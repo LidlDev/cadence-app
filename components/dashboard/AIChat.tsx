@@ -138,9 +138,27 @@ export default function AIChat() {
   }
 
   const handleStreamingRequest = async (userMessage: Message) => {
-    const response = await fetch('/api/ai/chat', {
+    const supabase = createClient()
+
+    // Get auth session for Edge Function
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    if (sessionError) {
+      console.error('Session error:', sessionError)
+      throw new Error('Failed to get session: ' + sessionError.message)
+    }
+    if (!session) {
+      console.error('No session found')
+      throw new Error('Not authenticated')
+    }
+
+    // Call Supabase Edge Function with streaming
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const response = await fetch(`${supabaseUrl}/functions/v1/ai-chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
         messages: [...messages, userMessage],
       }),
