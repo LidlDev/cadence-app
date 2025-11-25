@@ -42,6 +42,9 @@ export default function CalendarView({ runs, onRunClick }: CalendarViewProps) {
     'Tempo Run': 'bg-tempo-50 dark:bg-tempo-900/20 border-l-4 border-tempo-500 text-tempo-700 dark:text-tempo-300',
     'Quality Run': 'bg-quality-50 dark:bg-quality-900/20 border-l-4 border-quality-500 text-quality-700 dark:text-quality-300',
     'Long Run': 'bg-long-50 dark:bg-long-900/20 border-l-4 border-long-500 text-long-700 dark:text-long-300',
+    'Fartlek': 'bg-fartlek-50 dark:bg-fartlek-900/20 border-l-4 border-fartlek-500 text-fartlek-700 dark:text-fartlek-300',
+    'Interval': 'bg-interval-50 dark:bg-interval-900/20 border-l-4 border-interval-500 text-interval-700 dark:text-interval-300',
+    'Hill Repeats': 'bg-hill-50 dark:bg-hill-900/20 border-l-4 border-hill-500 text-hill-700 dark:text-hill-300',
   }
 
   return (
@@ -140,12 +143,24 @@ export default function CalendarView({ runs, onRunClick }: CalendarViewProps) {
           <span className="text-slate-600 dark:text-slate-400">Tempo</span>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2">
-          <div className="w-3 h-3 sm:w-4 sm:h-4 rounded bg-quality-400 dark:bg-quality-600" />
-          <span className="text-slate-600 dark:text-slate-400">Quality</span>
-        </div>
-        <div className="flex items-center gap-1.5 sm:gap-2">
           <div className="w-3 h-3 sm:w-4 sm:h-4 rounded bg-long-400 dark:bg-long-600" />
           <span className="text-slate-600 dark:text-slate-400">Long</span>
+        </div>
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="w-3 h-3 sm:w-4 sm:h-4 rounded bg-fartlek-400 dark:bg-fartlek-600" />
+          <span className="text-slate-600 dark:text-slate-400">Fartlek</span>
+        </div>
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="w-3 h-3 sm:w-4 sm:h-4 rounded bg-interval-400 dark:bg-interval-600" />
+          <span className="text-slate-600 dark:text-slate-400">Interval</span>
+        </div>
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="w-3 h-3 sm:w-4 sm:h-4 rounded bg-hill-400 dark:bg-hill-600" />
+          <span className="text-slate-600 dark:text-slate-400">Hill</span>
+        </div>
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="w-3 h-3 sm:w-4 sm:h-4 rounded bg-quality-400 dark:bg-quality-600" />
+          <span className="text-slate-600 dark:text-slate-400">Quality (Legacy)</span>
         </div>
       </div>
     </div>

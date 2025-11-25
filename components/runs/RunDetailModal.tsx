@@ -218,10 +218,22 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
               {(aiInsights || loadingInsights) && (
                 <div className="relative overflow-hidden rounded-xl p-6 bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 dark:from-purple-900/20 dark:via-blue-900/20 dark:to-indigo-900/20 border border-purple-200 dark:border-purple-800">
                   <div className="relative z-10">
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
-                      <Sparkles className="w-5 h-5 text-purple-600" />
-                      AI Performance Insights
-                    </h3>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <Sparkles className="w-5 h-5 text-purple-600" />
+                        AI Performance Insights
+                      </h3>
+                      {!loadingInsights && (
+                        <button
+                          onClick={fetchAIInsights}
+                          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 hover:bg-purple-200 dark:hover:bg-purple-900/60 rounded-lg transition-colors border border-purple-300 dark:border-purple-700"
+                          title="Regenerate AI insights"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                          Refresh
+                        </button>
+                      )}
+                    </div>
                     {loadingInsights ? (
                       <div className="flex items-center gap-3 py-4">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
@@ -229,7 +241,7 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
                       </div>
                     ) : (
                       <div className="text-sm"> {/* Removed 'prose' class as we are handling it manually now */}
-                        <ReactMarkdown 
+                        <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
                           components={MarkdownComponents} // <--- Add this prop
                         >

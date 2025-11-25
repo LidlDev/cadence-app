@@ -32,6 +32,12 @@ export default function FeaturedRunCard({ run, onLogRun, onReschedule }: Feature
         return <Flame className="w-6 h-6 text-primary-600 dark:text-primary-500" />
       case 'Long Run':
         return <Mountain className="w-6 h-6 text-primary-600 dark:text-primary-500" />
+      case 'Fartlek':
+        return <Zap className="w-6 h-6 text-primary-600 dark:text-primary-500" />
+      case 'Interval':
+        return <Flame className="w-6 h-6 text-primary-600 dark:text-primary-500" />
+      case 'Hill Repeats':
+        return <Mountain className="w-6 h-6 text-primary-600 dark:text-primary-500" />
       case 'Easy Run':
       default:
         return <Activity className="w-6 h-6 text-primary-600 dark:text-primary-500" />

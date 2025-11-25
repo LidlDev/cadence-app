@@ -64,6 +64,42 @@
   --color-long-700: #1d4ed8;
   --color-long-800: #1e40af;
   --color-long-900: #1e3a8a;
+
+  /* Fartlek - Purple (Complementary to yellow-orange) */
+  --color-fartlek-50: #faf5ff;
+  --color-fartlek-100: #f3e8ff;
+  --color-fartlek-200: #e9d5ff;
+  --color-fartlek-300: #d8b4fe;
+  --color-fartlek-400: #c084fc;
+  --color-fartlek-500: #a855f7;
+  --color-fartlek-600: #9333ea;
+  --color-fartlek-700: #7e22ce;
+  --color-fartlek-800: #6b21a8;
+  --color-fartlek-900: #581c87;
+
+  /* Interval - Pink/Magenta (High intensity color) */
+  --color-interval-50: #fdf2f8;
+  --color-interval-100: #fce7f3;
+  --color-interval-200: #fbcfe8;
+  --color-interval-300: #f9a8d4;
+  --color-interval-400: #f472b6;
+  --color-interval-500: #ec4899;
+  --color-interval-600: #db2777;
+  --color-interval-700: #be185d;
+  --color-interval-800: #9d174d;
+  --color-interval-900: #831843;
+
+  /* Hill Repeats - Emerald/Green (Mountain/elevation theme) */
+  --color-hill-50: #ecfdf5;
+  --color-hill-100: #d1fae5;
+  --color-hill-200: #a7f3d0;
+  --color-hill-300: #6ee7b7;
+  --color-hill-400: #34d399;
+  --color-hill-500: #10b981;
+  --color-hill-600: #059669;
+  --color-hill-700: #047857;
+  --color-hill-800: #065f46;
+  --color-hill-900: #064e3b;
 }
 
 *,

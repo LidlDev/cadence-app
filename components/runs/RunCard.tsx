@@ -175,6 +175,9 @@ export default function RunCard({ run, userId }: RunCardProps) {
     'Tempo Run': 'bg-tempo-100 dark:bg-tempo-900/30 border-tempo-400 dark:border-tempo-700',
     'Quality Run': 'bg-quality-100 dark:bg-quality-900/30 border-quality-400 dark:border-quality-700',
     'Long Run': 'bg-long-100 dark:bg-long-900/30 border-long-400 dark:border-long-700',
+    'Fartlek': 'bg-fartlek-100 dark:bg-fartlek-900/30 border-fartlek-400 dark:border-fartlek-700',
+    'Interval': 'bg-interval-100 dark:bg-interval-900/30 border-interval-400 dark:border-interval-700',
+    'Hill Repeats': 'bg-hill-100 dark:bg-hill-900/30 border-hill-400 dark:border-hill-700',
   }
 
   const cardColor = runTypeColors[run.run_type as keyof typeof runTypeColors] || 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-600'
