@@ -14,6 +14,18 @@ interface Message {
   processing?: boolean
 }
 
+const ChatMarkdownComponents = {
+  h1: ({ node, ...props }: any) => <h1 className="text-lg font-bold mt-4 mb-2 text-slate-900 dark:text-white" {...props} />,
+  h2: ({ node, ...props }: any) => <h2 className="text-base font-bold mt-3 mb-2 text-slate-900 dark:text-white" {...props} />,
+  h3: ({ node, ...props }: any) => <h3 className="text-sm font-bold mt-2 mb-1 text-slate-900 dark:text-white" {...props} />,
+  p: ({ node, ...props }: any) => <p className="mb-2 last:mb-0 leading-relaxed" {...props} />,
+  ul: ({ node, ...props }: any) => <ul className="list-disc list-outside ml-4 mb-2 space-y-0.5" {...props} />,
+  ol: ({ node, ...props }: any) => <ol className="list-decimal list-outside ml-4 mb-2 space-y-0.5" {...props} />,
+  li: ({ node, ...props }: any) => <li className="pl-1" {...props} />,
+  strong: ({ node, ...props }: any) => <span className="font-bold text-slate-900 dark:text-white" {...props} />,
+  blockquote: ({ node, ...props }: any) => <blockquote className="border-l-2 border-primary-400 pl-2 italic my-2 text-slate-500 dark:text-slate-400" {...props} />,
+}
+
 export default function AIChat() {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -255,7 +267,7 @@ export default function AIChat() {
         </div>
       </div>
 
-      {/* Messages */}
+     {/* Messages Area - This is the updated section */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message, index) => (
           <div
@@ -282,7 +294,7 @@ export default function AIChat() {
                 {message.role === 'assistant' ? (
                   <>
                     {message.processing && (
-                      <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+                      <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 mb-2">
                         <Clock className="w-3 h-3 animate-pulse" />
                         <span className="italic">Processing with extended timeout...</span>
                       </div>
@@ -293,11 +305,17 @@ export default function AIChat() {
                         <span>Training Plan Modified</span>
                       </div>
                     )}
-                    <div className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    
+                    {/* 2. Updated ReactMarkdown block using our custom components */}
+                    <div className="text-sm max-w-none">
+                      <ReactMarkdown 
+                        remarkPlugins={[remarkGfm]}
+                        components={ChatMarkdownComponents}
+                      >
                         {message.content}
                       </ReactMarkdown>
                     </div>
+
                     {message.function_calls && message.function_calls.length > 0 && (
                       <div className="mt-2 pt-2 border-t border-purple-200 dark:border-purple-700">
                         <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">
