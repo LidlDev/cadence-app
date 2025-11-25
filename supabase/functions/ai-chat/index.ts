@@ -56,7 +56,7 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { messages } = await req.json()
+    const { messages, conversationId, conversationTitle } = await req.json()
 
     // Get OpenAI API key
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
@@ -151,9 +151,16 @@ serve(async (req) => {
             }
           }
 
-          // Store memories after streaming completes (non-blocking)
+          // Store conversation and messages after streaming completes (non-blocking)
           if (fullMessage && messages.length > 0) {
-            extractAndStoreMemories(supabase, user.id, messages[messages.length - 1].content, fullMessage)
+            const userMessage = messages[messages.length - 1].content
+
+            // Store conversation and messages
+            storeConversation(supabase, user.id, conversationId, conversationTitle || 'New Chat', userMessage, fullMessage)
+              .catch(err => console.error('Error storing conversation:', err))
+
+            // Store memories
+            extractAndStoreMemories(supabase, user.id, userMessage, fullMessage)
               .catch(err => console.error('Error storing memories:', err))
           }
 
@@ -181,6 +188,64 @@ serve(async (req) => {
     )
   }
 })
+
+/**
+ * Stores conversation and messages in the database
+ */
+async function storeConversation(
+  supabase: any,
+  userId: string,
+  conversationId: string | null,
+  conversationTitle: string,
+  userMessage: string,
+  assistantMessage: string
+) {
+  try {
+    let convId = conversationId
+
+    // Create or get conversation
+    if (!convId) {
+      // Generate title from first user message (first 50 chars)
+      const title = conversationTitle || userMessage.substring(0, 50) + (userMessage.length > 50 ? '...' : '')
+
+      const { data: newConv, error: convError } = await supabase
+        .from('chat_conversations')
+        .insert({
+          user_id: userId,
+          title: title,
+          mode: 'chat',
+        })
+        .select()
+        .single()
+
+      if (convError) {
+        console.error('Error creating conversation:', convError)
+        return
+      }
+
+      convId = newConv.id
+    }
+
+    // Store user message
+    await supabase.from('chat_messages').insert({
+      conversation_id: convId,
+      role: 'user',
+      content: userMessage,
+    })
+
+    // Store assistant message
+    await supabase.from('chat_messages').insert({
+      conversation_id: convId,
+      role: 'assistant',
+      content: assistantMessage,
+    })
+
+    console.log('Conversation and messages stored successfully')
+    return convId
+  } catch (error) {
+    console.error('Error in storeConversation:', error)
+  }
+}
 
 /**
  * Extracts important information from conversation and stores as memories

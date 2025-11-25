@@ -180,3 +180,22 @@ export interface PersonalBest {
   updated_at: string
 }
 
+export interface ChatConversation {
+  id: string
+  user_id: string
+  title: string
+  mode: 'chat' | 'agentic'
+  created_at: string
+  updated_at: string
+  last_message_at: string
+}
+
+export interface ChatMessage {
+  id: string
+  conversation_id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  modifications_made: boolean
+  function_calls: string[] | null
+  created_at: string
+}
