@@ -3,6 +3,26 @@
 ## Overview
 This document summarizes the major improvements made to the AI features in the Cadence running app.
 
+## 0. ✅ New Run Types for Better Analysis
+
+**Problem**: The generic "Quality Run" type didn't provide enough context for AI to properly analyze structured workouts.
+
+**Solution**:
+- Added three new specific run types: **Fartlek**, **Interval**, and **Hill Repeats**
+- Kept existing "Quality Run" entries but prevent creating new ones (shows as "Quality Run (Legacy)" in edit mode)
+- Updated TypeScript types to include new run types
+
+**Files Changed**:
+- **UPDATED**: `cadence-app/components/runs/AddRunModal.tsx` - New run type options
+- **UPDATED**: `cadence-app/components/runs/EditRunModal.tsx` - New run types + legacy Quality Run support
+- **UPDATED**: `cadence-app/lib/types/database.ts` - Updated Run type definition
+
+**Benefits**:
+- ✅ AI can now provide run type-specific analysis
+- ✅ Better workout categorization for athletes
+- ✅ More accurate insights based on workout intent
+- ✅ Existing Quality Runs preserved for historical data
+
 ## 1. AI Chat - Moved to Supabase Edge Function ✅
 
 ### Problem
@@ -47,6 +67,37 @@ Enhanced the `ai-run-insights` Edge Function to:
 
 ### Files Changed
 - **UPDATED**: `cadence-app/supabase/functions/ai-run-insights/index.ts`
+
+### Workout Structure Parser
+
+The AI now intelligently parses workout descriptions from notes and Strava descriptions to understand the intended workout structure:
+
+**Supported Patterns**:
+- **Intervals**: "6x1km", "8x400m", "10 x 800m"
+- **Fartlek**: "2 on 2 off", "3min hard 2min easy", "90s fast 60s recovery"
+
+**What It Does**:
+- Extracts number of repetitions and distances/times
+- Compares detected efforts to planned structure
+- Validates if the workout was executed as planned
+- Provides specific feedback on each interval/surge
+
+**Example Analysis**:
+```
+Planned Workout Structure:
+- 6 x 1000m intervals
+
+Detected 6 hard effort segments:
+  1. 4:45/km for 240s ✓
+  2. 4:42/km for 238s ✓
+  3. 4:48/km for 242s ✓
+  4. 4:51/km for 245s ✓
+  5. 4:55/km for 248s ✓
+  6. 4:58/km for 250s ✓
+
+- Interval Consistency: Good (±8s variation)
+- Fatigue Pattern: Slowed by 0:13/km in later intervals - consider easier start
+```
 
 ### New Analysis Capabilities
 
