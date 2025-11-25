@@ -51,7 +51,7 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { runId } = await req.json()
+    const { runId, forceRegenerate } = await req.json()
 
     if (!runId) {
       return new Response(
@@ -84,8 +84,8 @@ serve(async (req) => {
       )
     }
 
-    // If insights already exist, return them
-    if (run.ai_insights) {
+    // If insights already exist and not forcing regeneration, return them
+    if (run.ai_insights && !forceRegenerate) {
       return new Response(
         JSON.stringify({ insights: run.ai_insights, cached: true }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

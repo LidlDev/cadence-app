@@ -87,7 +87,7 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
     }
   }
 
-  const fetchAIInsights = async () => {
+  const fetchAIInsights = async (forceRegenerate = false) => {
     setLoadingInsights(true)
     try {
       const supabase = createClient()
@@ -109,6 +109,7 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
         },
         body: JSON.stringify({
           runId: runId,
+          forceRegenerate: forceRegenerate,
         }),
       })
 
@@ -123,13 +124,25 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
 
       if (result.insights) {
         setAiInsights(result.insights)
+
+        // Show toast if regenerated
+        if (forceRegenerate) {
+          setToast({ message: 'AI insights regenerated successfully!', type: 'success' })
+        }
       }
     } catch (error) {
       console.error('Error fetching AI insights:', error)
       // Don't throw - insights are optional
+      if (forceRegenerate) {
+        setToast({ message: 'Failed to regenerate insights', type: 'error' })
+      }
     } finally {
       setLoadingInsights(false)
     }
+  }
+
+  const handleRefreshInsights = () => {
+    fetchAIInsights(true)
   }
 
   const handleRecalculateHRZones = async () => {
@@ -225,7 +238,7 @@ export default function RunDetailModal({ isOpen, onClose, runId, userId }: RunDe
                       </h3>
                       {!loadingInsights && (
                         <button
-                          onClick={fetchAIInsights}
+                          onClick={handleRefreshInsights}
                           className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 hover:bg-purple-200 dark:hover:bg-purple-900/60 rounded-lg transition-colors border border-purple-300 dark:border-purple-700"
                           title="Regenerate AI insights"
                         >
