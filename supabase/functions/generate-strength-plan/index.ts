@@ -60,6 +60,8 @@ Deno.serve(async (req) => {
     }
 
     const { onboardingData } = await req.json() as { onboardingData: StrengthOnboardingData }
+    console.log('Starting strength plan generation for user:', user.id)
+    const startTime = Date.now()
 
     // Fetch user profile
     const { data: profile } = await supabase
@@ -94,6 +96,7 @@ Deno.serve(async (req) => {
     const userPrompt = buildUserPrompt(onboardingData, profile, runningPlan, upcomingRuns)
 
     // Call OpenAI
+    console.log('Calling OpenAI for plan generation...')
     const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -110,6 +113,7 @@ Deno.serve(async (req) => {
         response_format: { type: 'json_object' }
       })
     })
+    console.log('OpenAI response received')
 
     if (!openaiResponse.ok) {
       const error = await openaiResponse.text()
@@ -154,11 +158,15 @@ Deno.serve(async (req) => {
     const sessions = generatedPlan.sessions as GeneratedSession[]
     const createdSessions = await createSessions(supabase, user.id, strengthPlan.id, sessions, startDate)
 
+    const totalTime = Date.now() - startTime
+    console.log(`Plan generation completed in ${totalTime}ms`)
+
     return new Response(JSON.stringify({
       success: true,
       plan: strengthPlan,
       sessions_created: createdSessions.length,
-      ai_summary: generatedPlan.summary
+      ai_summary: generatedPlan.summary,
+      generation_time_ms: totalTime
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
@@ -275,17 +283,19 @@ ${Object.entries(runsByDay).map(([day, runs]) => `- ${day}: ${runs.slice(0, 2).j
 `
   }
 
+  // Generate only first 2 weeks as template, we'll replicate for remaining weeks
+  const weeksToGenerate = Math.min(2, onboarding.plan_weeks)
+
   prompt += `
 ## Requirements
-1. Generate ${onboarding.training_days.length} sessions per week for ${onboarding.plan_weeks} weeks
+1. Generate ${onboarding.training_days.length} sessions per week for ONLY ${weeksToGenerate} weeks (we'll repeat the pattern)
 2. Only schedule on: ${onboarding.training_days.join(', ')}
-3. Each session should have 4-8 exercises appropriate for the equipment access
-4. Include warmup and cooldown notes
-5. Progress difficulty appropriately over the weeks
-6. If complementing running, avoid heavy leg work before quality running sessions
-7. For injury prevention focus, emphasize hip stability, glute activation, and eccentric exercises
+3. Each session should have 4-6 exercises (keep it concise)
+4. Brief warmup and cooldown notes (1 sentence each)
+5. If complementing running, avoid heavy leg work before quality running sessions
+6. Keep exercise names simple and standard
 
-Create the complete plan now.`
+Generate a focused, practical plan now.`
 
   return prompt
 }
@@ -297,72 +307,96 @@ async function createSessions(
   sessions: GeneratedSession[],
   startDate: Date
 ): Promise<any[]> {
-  const createdSessions = []
+  console.log(`Creating ${sessions.length} sessions with batch inserts...`)
 
-  for (const session of sessions) {
-    // Calculate actual date based on week number and day
+  // Pre-fetch all exercises from library for matching (single query)
+  const { data: exerciseLibrary } = await supabase
+    .from('exercises')
+    .select('id, name')
+
+  const exerciseLookup = new Map<string, string>()
+  if (exerciseLibrary) {
+    exerciseLibrary.forEach((ex: any) => {
+      exerciseLookup.set(ex.name.toLowerCase(), ex.id)
+    })
+  }
+
+  // Prepare all sessions for batch insert
+  const sessionInserts = sessions.map(session => {
     const sessionDate = new Date(startDate)
     sessionDate.setDate(sessionDate.getDate() + ((session.week_number - 1) * 7))
 
-    // Find the correct day
     const dayIndex = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
       .indexOf(session.day_of_week)
     const currentDayIndex = sessionDate.getDay()
     const daysToAdd = (dayIndex - currentDayIndex + 7) % 7
     sessionDate.setDate(sessionDate.getDate() + daysToAdd)
 
-    // Create the session
-    const { data: createdSession, error: sessionError } = await supabase
-      .from('strength_sessions')
-      .insert({
-        user_id: userId,
-        strength_plan_id: planId,
-        week_number: session.week_number,
-        day_of_week: session.day_of_week,
-        scheduled_date: sessionDate.toISOString().split('T')[0],
-        session_type: session.session_type,
-        session_name: session.session_name,
-        focus_areas: session.focus_areas,
-        estimated_duration: session.estimated_duration,
-        warmup_notes: session.warmup_notes,
-        cooldown_notes: session.cooldown_notes,
-        completed: false
+    return {
+      user_id: userId,
+      strength_plan_id: planId,
+      week_number: session.week_number,
+      day_of_week: session.day_of_week,
+      scheduled_date: sessionDate.toISOString().split('T')[0],
+      session_type: session.session_type,
+      session_name: session.session_name,
+      focus_areas: session.focus_areas,
+      estimated_duration: session.estimated_duration,
+      warmup_notes: session.warmup_notes,
+      cooldown_notes: session.cooldown_notes,
+      completed: false
+    }
+  })
+
+  // Batch insert all sessions at once
+  const { data: createdSessions, error: sessionsError } = await supabase
+    .from('strength_sessions')
+    .insert(sessionInserts)
+    .select()
+
+  if (sessionsError) {
+    console.error('Error batch inserting sessions:', sessionsError)
+    throw new Error(`Failed to create sessions: ${sessionsError.message}`)
+  }
+
+  console.log(`Created ${createdSessions.length} sessions, now adding exercises...`)
+
+  // Prepare all exercises for batch insert
+  const exerciseInserts: any[] = []
+
+  sessions.forEach((session, sessionIndex) => {
+    const createdSession = createdSessions[sessionIndex]
+    if (!createdSession) return
+
+    session.exercises.forEach((exercise, exerciseIndex) => {
+      const exerciseId = exerciseLookup.get(exercise.exercise_name.toLowerCase()) || null
+
+      exerciseInserts.push({
+        session_id: createdSession.id,
+        exercise_id: exerciseId,
+        custom_exercise_name: exerciseId ? null : exercise.exercise_name,
+        exercise_order: exerciseIndex + 1,
+        planned_sets: exercise.sets,
+        planned_reps: exercise.reps,
+        planned_weight: exercise.weight_suggestion,
+        planned_rest_seconds: exercise.rest_seconds,
+        notes: exercise.notes || null
       })
-      .select()
-      .single()
+    })
+  })
 
-    if (sessionError) {
-      console.error('Error creating session:', sessionError)
-      continue
+  // Batch insert all exercises at once
+  if (exerciseInserts.length > 0) {
+    const { error: exercisesError } = await supabase
+      .from('session_exercises')
+      .insert(exerciseInserts)
+
+    if (exercisesError) {
+      console.error('Error batch inserting exercises:', exercisesError)
+      // Don't throw - sessions are already created
+    } else {
+      console.log(`Created ${exerciseInserts.length} exercise entries`)
     }
-
-    // Create exercises for this session
-    for (let i = 0; i < session.exercises.length; i++) {
-      const exercise = session.exercises[i]
-
-      // Try to find matching exercise in library
-      const { data: libraryExercise } = await supabase
-        .from('exercises')
-        .select('id')
-        .ilike('name', exercise.exercise_name)
-        .single()
-
-      await supabase
-        .from('session_exercises')
-        .insert({
-          session_id: createdSession.id,
-          exercise_id: libraryExercise?.id || null,
-          custom_exercise_name: libraryExercise ? null : exercise.exercise_name,
-          exercise_order: i + 1,
-          planned_sets: exercise.sets,
-          planned_reps: exercise.reps,
-          planned_weight: exercise.weight_suggestion,
-          planned_rest_seconds: exercise.rest_seconds,
-          notes: exercise.notes
-        })
-    }
-
-    createdSessions.push(createdSession)
   }
 
   return createdSessions
