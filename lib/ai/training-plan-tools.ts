@@ -476,6 +476,116 @@ export const strengthTrainingTools = [
       },
     },
   },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'add_exercise_to_session',
+      description: 'Add an exercise to an existing strength session. Use this when the user wants to add a specific exercise to a workout.',
+      parameters: {
+        type: 'object',
+        properties: {
+          session_id: {
+            type: 'string',
+            description: 'The UUID of the strength session',
+          },
+          exercise_name: {
+            type: 'string',
+            description: 'Name of the exercise to add',
+          },
+          sets: {
+            type: 'number',
+            description: 'Number of sets (default: 3)',
+          },
+          reps: {
+            type: 'string',
+            description: 'Number of reps (e.g., "10", "8-12", "AMRAP")',
+          },
+          weight_suggestion: {
+            type: 'string',
+            description: 'Weight suggestion (e.g., "bodyweight", "light", "moderate", "heavy")',
+          },
+          rest_seconds: {
+            type: 'number',
+            description: 'Rest time between sets in seconds',
+          },
+          notes: {
+            type: 'string',
+            description: 'Form cues or notes for the exercise',
+          },
+        },
+        required: ['session_id', 'exercise_name'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'remove_exercise_from_session',
+      description: 'Remove an exercise from a strength session.',
+      parameters: {
+        type: 'object',
+        properties: {
+          session_id: {
+            type: 'string',
+            description: 'The UUID of the strength session',
+          },
+          exercise_name: {
+            type: 'string',
+            description: 'Name of the exercise to remove',
+          },
+        },
+        required: ['session_id', 'exercise_name'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'modify_session_exercise',
+      description: 'Modify an exercise within a strength session (change sets, reps, weight, etc).',
+      parameters: {
+        type: 'object',
+        properties: {
+          session_id: {
+            type: 'string',
+            description: 'The UUID of the strength session',
+          },
+          exercise_name: {
+            type: 'string',
+            description: 'Name of the exercise to modify',
+          },
+          changes: {
+            type: 'object',
+            properties: {
+              sets: { type: 'number' },
+              reps: { type: 'string' },
+              weight_suggestion: { type: 'string' },
+              rest_seconds: { type: 'number' },
+              notes: { type: 'string' },
+            },
+          },
+        },
+        required: ['session_id', 'exercise_name', 'changes'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'extend_strength_plan',
+      description: 'Generate additional weeks for the strength training plan, building on the current progression.',
+      parameters: {
+        type: 'object',
+        properties: {
+          weeks_to_add: {
+            type: 'number',
+            description: 'Number of weeks to add (default: 2)',
+          },
+        },
+        required: [],
+      },
+    },
+  },
 ]
 
 /**

@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
 
       case 'analyze_plan': {
         const { analysis_type } = params
-        
+
         // Fetch sessions for analysis
         const { data: sessions } = await supabase
           .from('strength_sessions')
@@ -124,6 +124,104 @@ export async function POST(request: NextRequest) {
         // Perform analysis based on type
         const analysis = analyzeStrengthPlan(sessions, analysis_type)
         return NextResponse.json({ success: true, ...analysis })
+      }
+
+      case 'add_exercise': {
+        const { session_id, exercise_name, sets = 3, reps = '10', weight_suggestion = 'moderate', rest_seconds = 60, notes } = params
+
+        // Find exercise in library
+        const { data: libraryExercise } = await supabase
+          .from('exercises')
+          .select('id')
+          .ilike('name', exercise_name)
+          .single()
+
+        // Get current max order
+        const { data: existingExercises } = await supabase
+          .from('session_exercises')
+          .select('exercise_order')
+          .eq('session_id', session_id)
+          .order('exercise_order', { ascending: false })
+          .limit(1)
+
+        const nextOrder = (existingExercises?.[0]?.exercise_order || 0) + 1
+
+        const { data, error } = await supabase
+          .from('session_exercises')
+          .insert({
+            session_id,
+            exercise_id: libraryExercise?.id || null,
+            custom_exercise_name: libraryExercise ? null : exercise_name,
+            exercise_order: nextOrder,
+            planned_sets: sets,
+            planned_reps: reps,
+            planned_weight: weight_suggestion,
+            planned_rest_seconds: rest_seconds,
+            notes
+          })
+          .select()
+          .single()
+
+        if (error) throw error
+        return NextResponse.json({ success: true, exercise: data, message: `Added ${exercise_name} to session` })
+      }
+
+      case 'remove_exercise': {
+        const { session_id, exercise_name } = params
+
+        // Find the exercise to remove
+        const { data: exercises } = await supabase
+          .from('session_exercises')
+          .select('*, exercise:exercises(name)')
+          .eq('session_id', session_id)
+
+        const exerciseToRemove = exercises?.find(e =>
+          e.exercise?.name?.toLowerCase() === exercise_name.toLowerCase() ||
+          e.custom_exercise_name?.toLowerCase() === exercise_name.toLowerCase()
+        )
+
+        if (!exerciseToRemove) {
+          return NextResponse.json({ error: `Exercise "${exercise_name}" not found in session` }, { status: 404 })
+        }
+
+        await supabase.from('session_exercises').delete().eq('id', exerciseToRemove.id)
+        return NextResponse.json({ success: true, message: `Removed ${exercise_name} from session` })
+      }
+
+      case 'modify_exercise': {
+        const { session_id, exercise_name, changes } = params
+
+        // Find the exercise to modify
+        const { data: exercises } = await supabase
+          .from('session_exercises')
+          .select('*, exercise:exercises(name)')
+          .eq('session_id', session_id)
+
+        const exerciseToModify = exercises?.find(e =>
+          e.exercise?.name?.toLowerCase() === exercise_name.toLowerCase() ||
+          e.custom_exercise_name?.toLowerCase() === exercise_name.toLowerCase()
+        )
+
+        if (!exerciseToModify) {
+          return NextResponse.json({ error: `Exercise "${exercise_name}" not found in session` }, { status: 404 })
+        }
+
+        const updateData: any = {}
+        if (changes.sets) updateData.planned_sets = changes.sets
+        if (changes.reps) updateData.planned_reps = changes.reps
+        if (changes.weight_suggestion) updateData.planned_weight = changes.weight_suggestion
+        if (changes.rest_seconds) updateData.planned_rest_seconds = changes.rest_seconds
+        if (changes.notes) updateData.notes = changes.notes
+
+        const { data, error } = await supabase
+          .from('session_exercises')
+          .update(updateData)
+          .eq('id', exerciseToModify.id)
+          .select()
+          .single()
+
+        if (error) throw error
+        return NextResponse.json({ success: true, exercise: data, message: `Updated ${exercise_name}` })
       }
 
       default:

@@ -181,6 +181,14 @@ You have access to powerful tools that can modify the user's training plan! When
 - **swap_session_day**: Move a strength session to a different day
 - **mark_strength_session_complete**: Mark a session as completed
 
+#### Exercise-Level Modifications:
+- **add_exercise_to_session**: Add an exercise to a specific session
+- **remove_exercise_from_session**: Remove an exercise from a session
+- **modify_session_exercise**: Change sets, reps, weight, or notes for an exercise
+
+#### Plan Extension:
+- **extend_strength_plan**: Generate additional weeks building on current progression
+
 #### Analysis:
 - **analyze_strength_plan**: Analyze the strength plan for balance, progress, recovery, or running integration
 
@@ -189,6 +197,10 @@ You have access to powerful tools that can modify the user's training plan! When
 - "Add a core workout on Wednesday"
 - "How is my strength training balanced?"
 - "Mark today's strength session as complete"
+- "Add hip thrusts to my Tuesday session"
+- "Remove the lunges from tomorrow's workout"
+- "Change squats to 4 sets of 8 reps"
+- "Generate 2 more weeks of strength sessions"
 
 ### Important:
 - For single run changes, use modify_single_run with the specific run ID from the training plan context
@@ -273,6 +285,22 @@ You have access to powerful tools that can modify the user's training plan! When
           else if (functionName === 'mark_strength_session_complete') {
             action = 'mark_complete'
             endpoint = 'strength-plan/modify'
+          }
+          else if (functionName === 'add_exercise_to_session') {
+            action = 'add_exercise'
+            endpoint = 'strength-plan/modify'
+          }
+          else if (functionName === 'remove_exercise_from_session') {
+            action = 'remove_exercise'
+            endpoint = 'strength-plan/modify'
+          }
+          else if (functionName === 'modify_session_exercise') {
+            action = 'modify_exercise'
+            endpoint = 'strength-plan/modify'
+          }
+          else if (functionName === 'extend_strength_plan') {
+            action = 'extend_plan'
+            endpoint = 'strength-plan/extend'
           }
 
           // Get app URL from environment or construct from Supabase URL

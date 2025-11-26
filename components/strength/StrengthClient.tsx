@@ -7,7 +7,8 @@ import StrengthCalendarView from './StrengthCalendarView'
 import StrengthSessionCard from './StrengthSessionCard'
 import FeaturedStrengthSession from './FeaturedStrengthSession'
 import EditStrengthSessionModal from './EditStrengthSessionModal'
-import { Dumbbell, Filter, Calendar, List, Plus, TrendingUp, Target } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import { Dumbbell, Filter, Calendar, List, Plus, TrendingUp, Target, Loader2, Sparkles } from 'lucide-react'
 import { format, isAfter, isBefore, startOfDay } from 'date-fns'
 
 interface StrengthClientProps {
@@ -21,8 +22,40 @@ export default function StrengthClient({ sessions, plan, userId }: StrengthClien
   const [filter, setFilter] = useState<'upcoming' | 'completed' | 'all'>('upcoming')
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar')
   const [editingSession, setEditingSession] = useState<StrengthSession | null>(null)
+  const [extending, setExtending] = useState(false)
+  const [extendError, setExtendError] = useState<string | null>(null)
 
   const today = startOfDay(new Date())
+
+  const handleExtendPlan = async (weeks: number = 2) => {
+    setExtending(true)
+    setExtendError(null)
+
+    try {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+
+      const response = await fetch('/api/strength-plan/extend', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ weeks_to_add: weeks })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to extend plan')
+      }
+
+      router.refresh()
+    } catch (error) {
+      setExtendError(error instanceof Error ? error.message : 'Failed to extend plan')
+    } finally {
+      setExtending(false)
+    }
+  }
 
   // Filter sessions
   const filteredSessions = sessions.filter(session => {
@@ -98,6 +131,50 @@ export default function StrengthClient({ sessions, plan, userId }: StrengthClien
             />
           </div>
         )}
+
+        {/* Extend Plan Section */}
+        <div className="mb-8 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 rounded-xl p-6 border border-orange-200 dark:border-orange-800">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-orange-500" />
+                Extend Your Plan
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                AI will generate more weeks based on your current progression
+              </p>
+              {extendError && (
+                <p className="text-sm text-red-500 mt-2">{extendError}</p>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleExtendPlan(2)}
+                disabled={extending}
+                className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                {extending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    Add 2 Weeks
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => handleExtendPlan(4)}
+                disabled={extending}
+                className="px-4 py-2 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 hover:bg-orange-200 dark:hover:bg-orange-900/50 rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                Add 4 Weeks
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* Filters and View Toggle */}
         <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">

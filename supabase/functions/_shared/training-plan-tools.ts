@@ -401,6 +401,80 @@ export const strengthTrainingTools = [
       },
     },
   },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'add_exercise_to_session',
+      description: 'Add an exercise to a strength session.',
+      parameters: {
+        type: 'object',
+        properties: {
+          session_id: { type: 'string' },
+          exercise_name: { type: 'string' },
+          sets: { type: 'number' },
+          reps: { type: 'string' },
+          weight_suggestion: { type: 'string' },
+          rest_seconds: { type: 'number' },
+          notes: { type: 'string' },
+        },
+        required: ['session_id', 'exercise_name'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'remove_exercise_from_session',
+      description: 'Remove an exercise from a strength session.',
+      parameters: {
+        type: 'object',
+        properties: {
+          session_id: { type: 'string' },
+          exercise_name: { type: 'string' },
+        },
+        required: ['session_id', 'exercise_name'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'modify_session_exercise',
+      description: 'Modify an exercise within a session.',
+      parameters: {
+        type: 'object',
+        properties: {
+          session_id: { type: 'string' },
+          exercise_name: { type: 'string' },
+          changes: {
+            type: 'object',
+            properties: {
+              sets: { type: 'number' },
+              reps: { type: 'string' },
+              weight_suggestion: { type: 'string' },
+              rest_seconds: { type: 'number' },
+              notes: { type: 'string' },
+            },
+          },
+        },
+        required: ['session_id', 'exercise_name', 'changes'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'extend_strength_plan',
+      description: 'Generate additional weeks for the strength training plan.',
+      parameters: {
+        type: 'object',
+        properties: {
+          weeks_to_add: { type: 'number' },
+        },
+        required: [],
+      },
+    },
+  },
 ]
 
 export const allTrainingTools = [...trainingPlanTools, ...strengthTrainingTools]
