@@ -74,6 +74,45 @@ serve(async (req) => {
       .single()
     console.log('Training plan fetched:', !!trainingPlan, 'Error:', trainingPlanError?.message)
 
+    // Fetch strength training plan
+    const { data: strengthPlan, error: strengthPlanError } = await supabase
+      .from('strength_training_plans')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .single()
+    console.log('Strength plan fetched:', !!strengthPlan, 'Error:', strengthPlanError?.message)
+
+    // Fetch upcoming strength sessions
+    let upcomingStrengthSessions: any[] = []
+    if (strengthPlan) {
+      const { data: sessions } = await supabase
+        .from('strength_sessions')
+        .select('*')
+        .eq('strength_plan_id', strengthPlan.id)
+        .eq('completed', false)
+        .gte('scheduled_date', today)
+        .lte('scheduled_date', thirtyDaysFromNow)
+        .order('scheduled_date', { ascending: true })
+        .limit(20)
+      upcomingStrengthSessions = sessions || []
+      console.log('Upcoming strength sessions fetched:', upcomingStrengthSessions.length)
+    }
+
+    // Fetch recent completed strength sessions
+    let recentStrengthSessions: any[] = []
+    if (strengthPlan) {
+      const { data: sessions } = await supabase
+        .from('strength_sessions')
+        .select('*')
+        .eq('strength_plan_id', strengthPlan.id)
+        .eq('completed', true)
+        .order('scheduled_date', { ascending: false })
+        .limit(10)
+      recentStrengthSessions = sessions || []
+      console.log('Recent strength sessions fetched:', recentStrengthSessions.length)
+    }
+
     // Fetch memories
     const { data: memories } = await supabase
       .from('ai_memories')
@@ -127,6 +166,44 @@ serve(async (req) => {
       systemMessage += `\n`
     }
 
+    // Add strength training context
+    if (strengthPlan) {
+      systemMessage += `## Strength Training Plan\n`
+      systemMessage += `- Plan: ${strengthPlan.name}\n`
+      systemMessage += `- Days per week: ${strengthPlan.days_per_week}\n`
+      systemMessage += `- Start Date: ${strengthPlan.start_date}\n`
+      systemMessage += `- Weeks: ${strengthPlan.weeks}\n`
+      if (strengthPlan.goals) {
+        systemMessage += `- Goals: ${(strengthPlan.goals as string[]).join(', ')}\n`
+      }
+      systemMessage += `\n`
+    }
+
+    if (upcomingStrengthSessions && upcomingStrengthSessions.length > 0) {
+      systemMessage += `## Upcoming Strength Sessions (Next 30 Days)\n`
+      upcomingStrengthSessions.forEach((session: any) => {
+        systemMessage += `- ${session.scheduled_date}: ${session.session_type.replace('_', ' ')}`
+        if (session.session_name) systemMessage += ` - ${session.session_name}`
+        if (session.estimated_duration) systemMessage += ` (${session.estimated_duration} min)`
+        if (session.focus_areas && session.focus_areas.length > 0) {
+          systemMessage += ` [${session.focus_areas.join(', ')}]`
+        }
+        systemMessage += `\n`
+      })
+      systemMessage += `\n`
+    }
+
+    if (recentStrengthSessions && recentStrengthSessions.length > 0) {
+      systemMessage += `## Recent Completed Strength Sessions (Last 10)\n`
+      recentStrengthSessions.forEach((session: any) => {
+        systemMessage += `- ${session.scheduled_date}: ${session.session_type.replace('_', ' ')}`
+        if (session.actual_duration) systemMessage += `, ${session.actual_duration} min`
+        if (session.rpe) systemMessage += `, RPE ${session.rpe}`
+        systemMessage += `\n`
+      })
+      systemMessage += `\n`
+    }
+
     if (memories && memories.length > 0) {
       systemMessage += `## Important Context (from previous conversations)\n`
       memories.forEach((mem: any) => {
@@ -136,7 +213,8 @@ serve(async (req) => {
     }
 
     systemMessage += `## Your Role\n`
-    systemMessage += `Provide personalized running advice based on the user's profile, training history, and goals. `
+    systemMessage += `Provide personalized running and strength training advice based on the user's profile, training history, and goals. `
+    systemMessage += `You understand how running and strength training work together - strength training improves running economy, prevents injuries, and builds power. `
     systemMessage += `Be encouraging, specific, and evidence-based in your recommendations.\n`
 
     return new Response(

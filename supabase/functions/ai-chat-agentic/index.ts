@@ -3,7 +3,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
-import { trainingPlanTools } from '../_shared/training-plan-tools.ts'
+import { allTrainingTools } from '../_shared/training-plan-tools.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -173,6 +173,23 @@ You have access to powerful tools that can modify the user's training plan! When
 - "Analyze my plan and suggest improvements"
 - "Adjust my training to peak for my race in 6 weeks"
 
+### 💪 Strength Training Functions:
+
+#### Session Management:
+- **modify_strength_session**: Modify a specific strength session by ID
+- **add_strength_sessions**: Add new strength sessions to the plan
+- **swap_session_day**: Move a strength session to a different day
+- **mark_strength_session_complete**: Mark a session as completed
+
+#### Analysis:
+- **analyze_strength_plan**: Analyze the strength plan for balance, progress, recovery, or running integration
+
+### Strength Training Examples:
+- "Move my lower body session to Friday"
+- "Add a core workout on Wednesday"
+- "How is my strength training balanced?"
+- "Mark today's strength session as complete"
+
 ### Important:
 - For single run changes, use modify_single_run with the specific run ID from the training plan context
 - For plan-wide optimization, use analyze_and_optimize_plan with specific modifications
@@ -199,7 +216,7 @@ You have access to powerful tools that can modify the user's training plan! When
         ],
         temperature: 0.8,
         max_tokens: 4000,
-        tools: enableTools ? trainingPlanTools : undefined,
+        tools: enableTools ? allTrainingTools : undefined,
         tool_choice: enableTools ? 'auto' : undefined,
       }),
     })
@@ -224,8 +241,11 @@ You have access to powerful tools that can modify the user's training plan! When
         console.log(`Executing function: ${functionName}`, functionArgs)
 
         try {
-          // Map function names to API actions
+          // Map function names to API actions and determine endpoint
           let action = functionName
+          let endpoint = 'training-plan/modify'
+
+          // Running plan functions
           if (functionName === 'add_runs_to_plan') action = 'add_runs'
           else if (functionName === 'move_run_type_to_day') action = 'move_run_type'
           else if (functionName === 'change_run_distances') action = 'change_distances'
@@ -233,12 +253,33 @@ You have access to powerful tools that can modify the user's training plan! When
           else if (functionName === 'add_training_weeks') action = 'add_weeks'
           else if (functionName === 'modify_single_run') action = 'modify_single_run'
           else if (functionName === 'analyze_and_optimize_plan') action = 'analyze_and_optimize'
+          // Strength training functions
+          else if (functionName === 'modify_strength_session') {
+            action = 'modify_session'
+            endpoint = 'strength-plan/modify'
+          }
+          else if (functionName === 'add_strength_sessions') {
+            action = 'add_sessions'
+            endpoint = 'strength-plan/modify'
+          }
+          else if (functionName === 'analyze_strength_plan') {
+            action = 'analyze_plan'
+            endpoint = 'strength-plan/modify'
+          }
+          else if (functionName === 'swap_session_day') {
+            action = 'swap_day'
+            endpoint = 'strength-plan/modify'
+          }
+          else if (functionName === 'mark_strength_session_complete') {
+            action = 'mark_complete'
+            endpoint = 'strength-plan/modify'
+          }
 
           // Get app URL from environment or construct from Supabase URL
           const appUrl = Deno.env.get('APP_URL') || supabaseUrl.replace('.supabase.co', '.vercel.app').replace('/v1', '')
 
-          // Call the training plan modification API on Vercel
-          const modifyResponse = await fetch(`${appUrl}/api/training-plan/modify`, {
+          // Call the appropriate modification API on Vercel
+          const modifyResponse = await fetch(`${appUrl}/api/${endpoint}`, {
             method: 'POST',
             headers: {
               'Authorization': authHeader,

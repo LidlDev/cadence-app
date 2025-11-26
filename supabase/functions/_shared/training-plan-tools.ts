@@ -284,3 +284,123 @@ export const trainingPlanTools = [
   },
 ]
 
+/**
+ * Strength Training Tools for AI Function Calling
+ */
+export const strengthTrainingTools = [
+  {
+    type: 'function' as const,
+    function: {
+      name: 'modify_strength_session',
+      description: 'Modify a specific strength training session. Use this for targeted changes to individual sessions.',
+      parameters: {
+        type: 'object',
+        properties: {
+          session_id: {
+            type: 'string',
+            description: 'The UUID of the strength session to modify',
+          },
+          changes: {
+            type: 'object',
+            description: 'Object containing the fields to update',
+            properties: {
+              session_type: {
+                type: 'string',
+                enum: ['lower_body', 'upper_body', 'full_body', 'core', 'mobility', 'power', 'recovery'],
+              },
+              session_name: { type: 'string' },
+              scheduled_date: { type: 'string' },
+              estimated_duration: { type: 'number' },
+              focus_areas: { type: 'array', items: { type: 'string' } },
+              notes: { type: 'string' },
+            },
+          },
+        },
+        required: ['session_id', 'changes'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'add_strength_sessions',
+      description: 'Add new strength training sessions to the plan.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sessions: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                week_number: { type: 'number' },
+                session_type: {
+                  type: 'string',
+                  enum: ['lower_body', 'upper_body', 'full_body', 'core', 'mobility', 'power', 'recovery'],
+                },
+                session_name: { type: 'string' },
+                scheduled_date: { type: 'string' },
+                estimated_duration: { type: 'number' },
+                focus_areas: { type: 'array', items: { type: 'string' } },
+              },
+              required: ['week_number', 'session_type', 'scheduled_date'],
+            },
+          },
+        },
+        required: ['sessions'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'analyze_strength_plan',
+      description: 'Analyze the current strength training plan and provide insights.',
+      parameters: {
+        type: 'object',
+        properties: {
+          analysis_type: {
+            type: 'string',
+            enum: ['balance', 'progress', 'recovery', 'running_integration', 'recommendations'],
+          },
+          focus_area: { type: 'string' },
+        },
+        required: ['analysis_type'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'swap_session_day',
+      description: 'Swap a strength session to a different day.',
+      parameters: {
+        type: 'object',
+        properties: {
+          session_id: { type: 'string' },
+          new_date: { type: 'string' },
+        },
+        required: ['session_id', 'new_date'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'mark_strength_session_complete',
+      description: 'Mark a strength session as completed.',
+      parameters: {
+        type: 'object',
+        properties: {
+          session_id: { type: 'string' },
+          actual_duration: { type: 'number' },
+          rpe: { type: 'number' },
+          notes: { type: 'string' },
+        },
+        required: ['session_id'],
+      },
+    },
+  },
+]
+
+export const allTrainingTools = [...trainingPlanTools, ...strengthTrainingTools]

@@ -301,3 +301,185 @@ export const trainingPlanTools = [
   },
 ]
 
+/**
+ * Strength Training Tools for AI Function Calling
+ * Defines the tools/functions that the AI can use to modify strength training plans
+ */
+export const strengthTrainingTools = [
+  {
+    type: 'function' as const,
+    function: {
+      name: 'modify_strength_session',
+      description: 'Modify a specific strength training session. Use this for targeted changes to individual sessions.',
+      parameters: {
+        type: 'object',
+        properties: {
+          session_id: {
+            type: 'string',
+            description: 'The UUID of the strength session to modify',
+          },
+          changes: {
+            type: 'object',
+            description: 'Object containing the fields to update',
+            properties: {
+              session_type: {
+                type: 'string',
+                enum: ['lower_body', 'upper_body', 'full_body', 'core', 'mobility', 'power', 'recovery'],
+                description: 'Type of strength session',
+              },
+              session_name: {
+                type: 'string',
+                description: 'Name of the session',
+              },
+              scheduled_date: {
+                type: 'string',
+                description: 'New scheduled date in YYYY-MM-DD format',
+              },
+              estimated_duration: {
+                type: 'number',
+                description: 'Estimated duration in minutes',
+              },
+              focus_areas: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Focus areas for the session (e.g., ["glutes", "hamstrings"])',
+              },
+              notes: {
+                type: 'string',
+                description: 'Updated notes for the session',
+              },
+            },
+          },
+        },
+        required: ['session_id', 'changes'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'add_strength_sessions',
+      description: 'Add new strength training sessions to the plan. Use when the user wants to add workouts.',
+      parameters: {
+        type: 'object',
+        properties: {
+          sessions: {
+            type: 'array',
+            description: 'Array of sessions to add',
+            items: {
+              type: 'object',
+              properties: {
+                week_number: {
+                  type: 'number',
+                  description: 'Week number in the training plan',
+                },
+                session_type: {
+                  type: 'string',
+                  enum: ['lower_body', 'upper_body', 'full_body', 'core', 'mobility', 'power', 'recovery'],
+                  description: 'Type of strength session',
+                },
+                session_name: {
+                  type: 'string',
+                  description: 'Name of the session',
+                },
+                scheduled_date: {
+                  type: 'string',
+                  description: 'Date in YYYY-MM-DD format',
+                },
+                estimated_duration: {
+                  type: 'number',
+                  description: 'Estimated duration in minutes',
+                },
+                focus_areas: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Focus areas for the session',
+                },
+              },
+              required: ['week_number', 'session_type', 'scheduled_date'],
+            },
+          },
+        },
+        required: ['sessions'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'analyze_strength_plan',
+      description: 'Analyze the current strength training plan and provide insights or recommendations. Use when the user asks about their strength training progress, balance, or wants suggestions.',
+      parameters: {
+        type: 'object',
+        properties: {
+          analysis_type: {
+            type: 'string',
+            enum: ['balance', 'progress', 'recovery', 'running_integration', 'recommendations'],
+            description: 'Type of analysis to perform',
+          },
+          focus_area: {
+            type: 'string',
+            description: 'Specific area to focus the analysis on (optional)',
+          },
+        },
+        required: ['analysis_type'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'swap_session_day',
+      description: 'Swap a strength session to a different day. Use when the user wants to reschedule a session.',
+      parameters: {
+        type: 'object',
+        properties: {
+          session_id: {
+            type: 'string',
+            description: 'The UUID of the session to move',
+          },
+          new_date: {
+            type: 'string',
+            description: 'New date in YYYY-MM-DD format',
+          },
+        },
+        required: ['session_id', 'new_date'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'mark_strength_session_complete',
+      description: 'Mark a strength session as completed. Use when the user says they finished a workout.',
+      parameters: {
+        type: 'object',
+        properties: {
+          session_id: {
+            type: 'string',
+            description: 'The UUID of the session to mark complete',
+          },
+          actual_duration: {
+            type: 'number',
+            description: 'Actual duration in minutes',
+          },
+          rpe: {
+            type: 'number',
+            description: 'Rate of perceived exertion (1-10)',
+          },
+          notes: {
+            type: 'string',
+            description: 'Notes about the completed session',
+          },
+        },
+        required: ['session_id'],
+      },
+    },
+  },
+]
+
+/**
+ * Combined tools for both running and strength training
+ */
+export const allTrainingTools = [...trainingPlanTools, ...strengthTrainingTools]
+

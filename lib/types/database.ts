@@ -106,26 +106,156 @@ export interface Run {
   has_temp_stream: boolean | null
 }
 
-export interface StrengthSession {
+// ============================================
+// STRENGTH TRAINING TYPES
+// ============================================
+
+export type StrengthGoal =
+  | 'build_muscle'
+  | 'injury_prevention'
+  | 'running_performance'
+  | 'weight_loss'
+  | 'general_fitness'
+  | 'power_development'
+
+export type WeightGoal = 'maintain' | 'lose' | 'gain'
+
+export type RunningIntegration = 'complement_running' | 'separate' | 'recovery_focused'
+
+export type EquipmentAccess = 'full_gym' | 'home_gym' | 'bodyweight' | 'minimal'
+
+export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced'
+
+export type SessionType =
+  | 'lower_body'
+  | 'upper_body'
+  | 'full_body'
+  | 'core'
+  | 'mobility'
+  | 'power'
+  | 'recovery'
+
+export type ExerciseCategory =
+  | 'legs'
+  | 'core'
+  | 'upper_body'
+  | 'full_body'
+  | 'mobility'
+  | 'plyometrics'
+
+export interface StrengthTrainingPlan {
   id: string
   user_id: string
-  training_plan_id: string | null
-  scheduled_date: string
-  completed: boolean
-  session_type: string | null
-  exercises: Exercise[] | null
-  duration: number | null
-  notes: string | null
+  name: string
+
+  // Goals and preferences from onboarding
+  strength_goals: StrengthGoal[] | null
+  weight_goal: WeightGoal | null
+  target_weight: number | null
+  running_integration: RunningIntegration | null
+  training_days: string[] | null // ['Monday', 'Wednesday', 'Friday']
+  equipment_access: EquipmentAccess | null
+  experience_level: ExperienceLevel | null
+  additional_notes: string | null
+
+  // Plan structure
+  start_date: string
+  end_date: string
+  weeks: number
+  sessions_per_week: number
+
+  // Status
+  status: 'active' | 'completed' | 'paused'
+
   created_at: string
   updated_at: string
 }
 
 export interface Exercise {
+  id: string
   name: string
-  sets: number
+  category: ExerciseCategory
+  muscle_groups: string[] | null
+  equipment_needed: string | null
+  running_benefit: string | null
+  difficulty_level: ExperienceLevel | null
+  instructions: string | null
+  video_url: string | null
+  created_at: string
+}
+
+export interface StrengthSession {
+  id: string
+  user_id: string
+  strength_plan_id: string | null
+
+  // Scheduling
+  week_number: number
+  day_of_week: string
+  scheduled_date: string
+  session_type: SessionType
+  session_name: string | null
+
+  // Session details
+  focus_areas: string[] | null
+  estimated_duration: number
+  warmup_notes: string | null
+  cooldown_notes: string | null
+
+  // Completion tracking
+  completed: boolean
+  completed_at: string | null
+  actual_duration: number | null
+  rpe: number | null
+  notes: string | null
+
+  created_at: string
+  updated_at: string
+
+  // Joined data
+  exercises?: SessionExercise[]
+}
+
+export interface CompletedSet {
   reps: number
-  weight?: number
-  notes?: string
+  weight: string
+}
+
+export interface SessionExercise {
+  id: string
+  session_id: string
+  exercise_id: string | null
+  custom_exercise_name: string | null
+
+  // Planned values
+  exercise_order: number
+  planned_sets: number
+  planned_reps: string // Can be '8-10' or '12' or 'AMRAP'
+  planned_weight: string | null // '20kg', 'bodyweight', 'light band'
+  planned_rest_seconds: number
+
+  // Actual values (when completed)
+  completed_sets: CompletedSet[] | null
+  notes: string | null
+
+  created_at: string
+  updated_at: string
+
+  // Joined data
+  exercise?: Exercise
+}
+
+// Onboarding form data type
+export interface StrengthOnboardingData {
+  strength_goals: StrengthGoal[]
+  weight_goal: WeightGoal
+  target_weight?: number
+  running_integration: RunningIntegration
+  training_days: string[]
+  equipment_access: EquipmentAccess
+  experience_level: ExperienceLevel
+  additional_notes?: string
+  plan_weeks: number
 }
 
 export interface NutritionLog {
