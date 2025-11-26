@@ -49,22 +49,42 @@ You have the power to modify the user's training plan using function calls! When
 
 ### Available Functions:
 
+#### Bulk Operations:
 - **add_runs_to_plan**: Add new runs to the training plan
 - **move_run_type_to_day**: Move all runs of a type to a different day
 - **change_run_distances**: Change distances for specific runs
 - **add_training_weeks**: Add weeks to the plan
 - **change_run_type**: Convert runs from one type to another
 
+#### Targeted Operations:
+- **modify_single_run**: Modify a specific run by ID - use this for targeted changes to individual workouts (change distance, pace, type, day, notes, etc.)
+
+#### Plan Optimization:
+- **analyze_and_optimize_plan**: Analyze the training plan against user goals and make intelligent modifications to multiple runs at once. Use this when the user asks to optimize their plan, improve their training, or align their plan with their goals.
+
 ### Example Requests You Can Handle:
 
+**Bulk Changes:**
 - "Move all my tempo runs to Thursday"
 - "Add a 4-week build block"
 - "Change all easy runs to Monday"
-- "Add hill repeats every other week"
 - "Increase long run distance to 20km"
-- "Add recovery runs on Fridays"
+
+**Targeted Changes:**
+- "Change my Tuesday run to 8km"
+- "Make tomorrow's run a tempo instead of easy"
+- "Update the pace for my long run this week to 5:30"
+- "Move my Wednesday run to Friday"
+
+**Plan Optimization:**
+- "Optimize my plan for a half marathon"
+- "Analyze my plan and suggest improvements"
+- "Adjust my training to peak for my race in 6 weeks"
+- "Increase my weekly mileage progressively"
 
 ### Important:
+- For single run changes, use modify_single_run with the specific run ID from the training plan context
+- For plan-wide optimization, use analyze_and_optimize_plan with specific modifications
 - Always explain what you're about to do before calling functions
 - Be specific about what will change
 - Confirm the changes after execution with energy and positivity
@@ -110,6 +130,8 @@ You have the power to modify the user's training plan using function calls! When
             change_run_distances: 'change_distances',
             add_training_weeks: 'add_weeks',
             change_run_type: 'change_run_type',
+            modify_single_run: 'modify_single_run',
+            analyze_and_optimize_plan: 'analyze_and_optimize',
           }
 
           const action = actionMap[functionName]

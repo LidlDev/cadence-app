@@ -77,6 +77,12 @@ export async function POST(request: NextRequest) {
       case 'delete_runs':
         result = await deleteRuns(supabase, user.id, plan.id, params)
         break
+      case 'modify_single_run':
+        result = await modifySingleRun(supabase, user.id, params)
+        break
+      case 'analyze_and_optimize':
+        result = await analyzeAndOptimizePlan(supabase, user.id, plan.id, params)
+        break
       default:
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
     }
@@ -349,6 +355,184 @@ function calculateDateForWeekAndDay(planStartDate: string, weekNumber: number, d
   targetDate.setDate(targetDate.getDate() + daysOffset)
 
   return targetDate.toISOString().split('T')[0]
+}
+
+/**
+ * Modify a single run by ID with targeted changes
+ */
+async function modifySingleRun(supabase: any, userId: string, params: any) {
+  const { run_id, changes } = params
+
+  if (!run_id) {
+    throw new Error('run_id is required')
+  }
+
+  // Verify the run belongs to the user
+  const { data: existingRun, error: fetchError } = await supabase
+    .from('runs')
+    .select('*')
+    .eq('id', run_id)
+    .eq('user_id', userId)
+    .single()
+
+  if (fetchError || !existingRun) {
+    throw new Error(`Run not found or access denied: ${run_id}`)
+  }
+
+  // Build the update object with only provided changes
+  const updateData: Record<string, any> = {}
+
+  if (changes.run_type !== undefined) updateData.run_type = changes.run_type
+  if (changes.session_type !== undefined) updateData.session_type = changes.session_type
+  if (changes.planned_distance !== undefined) updateData.planned_distance = changes.planned_distance
+  if (changes.target_pace !== undefined) updateData.target_pace = changes.target_pace
+  if (changes.notes !== undefined) updateData.notes = changes.notes
+
+  // Handle day/date changes
+  if (changes.day_of_week !== undefined) {
+    updateData.day_of_week = changes.day_of_week
+    // Recalculate the scheduled date if day changes but date not explicitly provided
+    if (!changes.scheduled_date) {
+      updateData.scheduled_date = calculateNewDate(
+        existingRun.scheduled_date,
+        existingRun.day_of_week,
+        changes.day_of_week
+      )
+    }
+  }
+
+  if (changes.scheduled_date !== undefined) {
+    updateData.scheduled_date = changes.scheduled_date
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    return { updated: false, message: 'No changes provided' }
+  }
+
+  const { data, error } = await supabase
+    .from('runs')
+    .update(updateData)
+    .eq('id', run_id)
+    .eq('user_id', userId)
+    .select()
+    .single()
+
+  if (error) throw error
+
+  return {
+    updated: true,
+    run: data,
+    changes_applied: Object.keys(updateData),
+    message: `Successfully updated run: ${Object.keys(updateData).join(', ')}`
+  }
+}
+
+/**
+ * Analyze and optimize the training plan with multiple modifications
+ */
+async function analyzeAndOptimizePlan(supabase: any, userId: string, planId: string, params: any) {
+  const { modifications, optimization_goals, target_race_distance, target_race_date, weekly_mileage_target } = params
+
+  if (!modifications || !Array.isArray(modifications) || modifications.length === 0) {
+    throw new Error('modifications array is required')
+  }
+
+  const results = {
+    successful: [] as any[],
+    failed: [] as any[],
+    optimization_goals: optimization_goals || [],
+    target_race_distance,
+    target_race_date,
+    weekly_mileage_target,
+  }
+
+  // Process each modification
+  for (const mod of modifications) {
+    try {
+      const { run_id, changes } = mod
+
+      if (!run_id || !changes) {
+        results.failed.push({ run_id, error: 'Missing run_id or changes' })
+        continue
+      }
+
+      // Verify the run belongs to the user and plan
+      const { data: existingRun, error: fetchError } = await supabase
+        .from('runs')
+        .select('*')
+        .eq('id', run_id)
+        .eq('user_id', userId)
+        .eq('training_plan_id', planId)
+        .single()
+
+      if (fetchError || !existingRun) {
+        results.failed.push({ run_id, error: 'Run not found or access denied' })
+        continue
+      }
+
+      // Build update object
+      const updateData: Record<string, any> = {}
+
+      if (changes.run_type !== undefined) updateData.run_type = changes.run_type
+      if (changes.session_type !== undefined) updateData.session_type = changes.session_type
+      if (changes.planned_distance !== undefined) updateData.planned_distance = changes.planned_distance
+      if (changes.target_pace !== undefined) updateData.target_pace = changes.target_pace
+      if (changes.notes !== undefined) updateData.notes = changes.notes
+
+      if (changes.day_of_week !== undefined) {
+        updateData.day_of_week = changes.day_of_week
+        if (!changes.scheduled_date) {
+          updateData.scheduled_date = calculateNewDate(
+            existingRun.scheduled_date,
+            existingRun.day_of_week,
+            changes.day_of_week
+          )
+        }
+      }
+
+      if (changes.scheduled_date !== undefined) {
+        updateData.scheduled_date = changes.scheduled_date
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        results.failed.push({ run_id, error: 'No valid changes provided' })
+        continue
+      }
+
+      const { data, error } = await supabase
+        .from('runs')
+        .update(updateData)
+        .eq('id', run_id)
+        .select()
+        .single()
+
+      if (error) {
+        results.failed.push({ run_id, error: error.message })
+      } else {
+        results.successful.push({
+          run_id,
+          changes_applied: Object.keys(updateData),
+          updated_run: data,
+        })
+      }
+    } catch (error: any) {
+      results.failed.push({ run_id: mod.run_id, error: error.message })
+    }
+  }
+
+  return {
+    total_modifications: modifications.length,
+    successful_count: results.successful.length,
+    failed_count: results.failed.length,
+    successful: results.successful,
+    failed: results.failed,
+    optimization_summary: {
+      goals: results.optimization_goals,
+      target_race: target_race_distance ? `${target_race_distance} on ${target_race_date || 'TBD'}` : null,
+      weekly_mileage_target,
+    },
+    message: `Optimized ${results.successful.length} of ${modifications.length} runs successfully`,
+  }
 }
 
 

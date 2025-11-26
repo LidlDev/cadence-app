@@ -161,5 +161,126 @@ export const trainingPlanTools = [
       },
     },
   },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'modify_single_run',
+      description: 'Modify a specific run by ID. Use this for targeted changes to individual runs when the user wants to change a specific workout. You must first get the run details from the training plan context to know the run ID.',
+      parameters: {
+        type: 'object',
+        properties: {
+          run_id: {
+            type: 'string',
+            description: 'The UUID of the specific run to modify',
+          },
+          changes: {
+            type: 'object',
+            description: 'Object containing the fields to update',
+            properties: {
+              run_type: {
+                type: 'string',
+                enum: ['Easy Run', 'Tempo Run', 'Quality Run', 'Long Run', 'Recovery Run', 'Hill Repeats', 'Intervals'],
+                description: 'New run type',
+              },
+              session_type: {
+                type: 'string',
+                description: 'Specific session type (e.g., "Fartlek", "400m repeats")',
+              },
+              planned_distance: {
+                type: 'number',
+                description: 'New planned distance in kilometers',
+              },
+              target_pace: {
+                type: 'string',
+                description: 'New target pace (e.g., "5:00")',
+              },
+              day_of_week: {
+                type: 'string',
+                enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+                description: 'New day of the week',
+              },
+              scheduled_date: {
+                type: 'string',
+                description: 'New scheduled date in YYYY-MM-DD format',
+              },
+              notes: {
+                type: 'string',
+                description: 'Updated notes for the run',
+              },
+            },
+          },
+        },
+        required: ['run_id', 'changes'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'analyze_and_optimize_plan',
+      description: 'Analyze the current training plan against user goals and make intelligent modifications to multiple runs. Use this when the user asks to optimize their plan, improve their training, or align their plan with their goals. This is a powerful tool that can modify distances, paces, run types, and scheduling across the entire plan.',
+      parameters: {
+        type: 'object',
+        properties: {
+          optimization_goals: {
+            type: 'array',
+            description: 'List of optimization goals to achieve',
+            items: {
+              type: 'string',
+              enum: [
+                'increase_weekly_mileage',
+                'improve_speed_work',
+                'add_recovery',
+                'balance_intensity',
+                'progressive_overload',
+                'taper_for_race',
+                'build_base',
+                'peak_performance',
+              ],
+            },
+          },
+          target_race_distance: {
+            type: 'string',
+            description: 'Target race distance if optimizing for a specific race (e.g., "5K", "10K", "Half Marathon", "Marathon")',
+          },
+          target_race_date: {
+            type: 'string',
+            description: 'Target race date in YYYY-MM-DD format if optimizing for a race',
+          },
+          weekly_mileage_target: {
+            type: 'number',
+            description: 'Target weekly mileage in kilometers',
+          },
+          modifications: {
+            type: 'array',
+            description: 'Specific modifications to make to runs',
+            items: {
+              type: 'object',
+              properties: {
+                run_id: {
+                  type: 'string',
+                  description: 'ID of the run to modify',
+                },
+                changes: {
+                  type: 'object',
+                  description: 'Changes to apply to this run',
+                  properties: {
+                    run_type: { type: 'string' },
+                    planned_distance: { type: 'number' },
+                    target_pace: { type: 'string' },
+                    day_of_week: { type: 'string' },
+                    scheduled_date: { type: 'string' },
+                    notes: { type: 'string' },
+                  },
+                },
+              },
+              required: ['run_id', 'changes'],
+            },
+          },
+        },
+        required: ['modifications'],
+      },
+    },
+  },
 ]
 
