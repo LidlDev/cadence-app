@@ -479,6 +479,102 @@ You have access to powerful tools that can modify the user's training plan! When
             })
             continue
           }
+          else if (functionName === 'analyze_nutrition') {
+            // Call the ai-nutrition-insights edge function
+            const insightsResponse = await fetch(`${supabaseUrl}/functions/v1/ai-nutrition-insights`, {
+              method: 'POST',
+              headers: {
+                'Authorization': authHeader,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                period: functionArgs.days && functionArgs.days > 7 ? 'month' : 'week',
+              }),
+            })
+
+            let insightsResult
+            if (insightsResponse.ok) {
+              insightsResult = await insightsResponse.json()
+            } else {
+              insightsResult = { error: 'Failed to analyze nutrition' }
+            }
+
+            functionResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify(insightsResult),
+            })
+            continue
+          }
+          else if (functionName === 'adjust_nutrition_targets') {
+            const today = new Date().toISOString().split('T')[0]
+
+            // Get current target
+            const { data: currentTarget } = await supabase
+              .from('daily_nutrition_targets')
+              .select('*')
+              .eq('user_id', user.id)
+              .eq('target_date', today)
+              .single()
+
+            let newValue = functionArgs.value
+            const targetField = `target_${functionArgs.target_type === 'calories' ? 'calories' : functionArgs.target_type + '_g'}`
+
+            if (functionArgs.adjustment === 'increase') {
+              newValue = (currentTarget?.[targetField] || 0) * (1 + functionArgs.value / 100)
+            } else if (functionArgs.adjustment === 'decrease') {
+              newValue = (currentTarget?.[targetField] || 0) * (1 - functionArgs.value / 100)
+            }
+
+            const updateData: any = {}
+            updateData[targetField] = Math.round(newValue)
+
+            const { data: updatedTarget, error: updateError } = await supabase
+              .from('daily_nutrition_targets')
+              .upsert({
+                user_id: user.id,
+                target_date: today,
+                ...currentTarget,
+                ...updateData,
+              })
+              .select()
+              .single()
+
+            functionResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify(updateError ? { error: updateError.message } : { success: true, target: updatedTarget }),
+            })
+            continue
+          }
+          else if (functionName === 'get_meal_suggestions') {
+            // Call the ai-meal-suggestions edge function
+            const suggestionsResponse = await fetch(`${supabaseUrl}/functions/v1/ai-meal-suggestions`, {
+              method: 'POST',
+              headers: {
+                'Authorization': authHeader,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                mealType: functionArgs.meal_type,
+                preferences: functionArgs.constraints?.quick_prep ? 'quick and easy to prepare' : undefined,
+              }),
+            })
+
+            let suggestionsResult
+            if (suggestionsResponse.ok) {
+              suggestionsResult = await suggestionsResponse.json()
+            } else {
+              suggestionsResult = { error: 'Failed to get meal suggestions' }
+            }
+
+            functionResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify(suggestionsResult),
+            })
+            continue
+          }
 
           // Get app URL from environment or construct from Supabase URL
           const appUrl = Deno.env.get('APP_URL') || supabaseUrl.replace('.supabase.co', '.vercel.app').replace('/v1', '')
