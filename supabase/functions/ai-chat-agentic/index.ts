@@ -395,12 +395,11 @@ You have access to powerful tools that can modify the user's training plan! When
                 user_id: user.id,
                 log_date: mealDate,
                 meal_type: functionArgs.meal_type,
-                name: functionArgs.meal_name || functionArgs.meal_type,
+                meal_name: functionArgs.meal_name || functionArgs.meal_type,
                 total_calories: totalCals,
                 total_protein_g: totalProtein,
                 total_carbs_g: totalCarbs,
                 total_fat_g: totalFat,
-                logged_at: new Date().toISOString(),
               })
               .select()
               .single()
@@ -422,7 +421,6 @@ You have access to powerful tools that can modify the user's training plan! When
                 log_date: functionArgs.date || today,
                 amount_ml: functionArgs.amount_ml,
                 beverage_type: functionArgs.beverage_type || 'water',
-                logged_at: new Date().toISOString(),
               })
               .select()
               .single()

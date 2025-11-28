@@ -81,10 +81,10 @@ export default function MealLogCard({ meals, target, onLogMeal }: MealLogCardPro
                     <div key={meal.id} className="p-4 flex items-center justify-between">
                       <div>
                         <p className="font-medium text-slate-900 dark:text-white">
-                          {meal.name || 'Logged meal'}
+                          {meal.meal_name || 'Logged meal'}
                         </p>
                         <p className="text-sm text-slate-500">
-                          {meal.logged_at && format(new Date(meal.logged_at), 'h:mm a')}
+                          {meal.created_at && format(new Date(meal.created_at), 'h:mm a')}
                         </p>
                       </div>
                       <div className="text-right">
