@@ -575,6 +575,62 @@ You have access to powerful tools that can modify the user's training plan! When
             })
             continue
           }
+          else if (functionName === 'analyze_nutrition_performance') {
+            // Call the nutrition-performance-correlation edge function
+            const correlationResponse = await fetch(`${supabaseUrl}/functions/v1/nutrition-performance-correlation`, {
+              method: 'POST',
+              headers: {
+                'Authorization': authHeader,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                lookbackDays: functionArgs.lookback_days || 30,
+              }),
+            })
+
+            let correlationResult
+            if (correlationResponse.ok) {
+              correlationResult = await correlationResponse.json()
+            } else {
+              correlationResult = { error: 'Failed to analyze nutrition-performance correlation' }
+            }
+
+            functionResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify(correlationResult),
+            })
+            continue
+          }
+          else if (functionName === 'get_weather_hydration') {
+            // Call the weather-hydration edge function
+            const weatherResponse = await fetch(`${supabaseUrl}/functions/v1/weather-hydration`, {
+              method: 'POST',
+              headers: {
+                'Authorization': authHeader,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                latitude: functionArgs.latitude,
+                longitude: functionArgs.longitude,
+                date: functionArgs.date,
+              }),
+            })
+
+            let weatherResult
+            if (weatherResponse.ok) {
+              weatherResult = await weatherResponse.json()
+            } else {
+              weatherResult = { error: 'Failed to get weather-adjusted hydration' }
+            }
+
+            functionResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify(weatherResult),
+            })
+            continue
+          }
 
           // Get app URL from environment or construct from Supabase URL
           const appUrl = Deno.env.get('APP_URL') || supabaseUrl.replace('.supabase.co', '.vercel.app').replace('/v1', '')

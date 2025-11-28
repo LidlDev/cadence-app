@@ -643,6 +643,48 @@ export const nutritionTools = [
       },
     },
   },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'analyze_nutrition_performance',
+      description: 'Analyze how nutrition impacts running performance. Shows correlations between meals, hydration, and run quality.',
+      parameters: {
+        type: 'object',
+        properties: {
+          lookback_days: {
+            type: 'number',
+            description: 'Number of days to analyze (default 30)',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'get_weather_hydration',
+      description: 'Get weather-adjusted hydration targets based on location and training.',
+      parameters: {
+        type: 'object',
+        properties: {
+          latitude: {
+            type: 'number',
+            description: 'Latitude for weather lookup',
+          },
+          longitude: {
+            type: 'number',
+            description: 'Longitude for weather lookup',
+          },
+          date: {
+            type: 'string',
+            description: 'Date in YYYY-MM-DD format (defaults to today)',
+          },
+        },
+        required: [],
+      },
+    },
+  },
 ]
 
 export const allTrainingTools = [...trainingPlanTools, ...strengthTrainingTools, ...nutritionTools]
