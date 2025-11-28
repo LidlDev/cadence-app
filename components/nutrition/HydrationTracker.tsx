@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Droplets, Plus, Coffee, GlassWater } from 'lucide-react'
+import { Droplets, Plus, Coffee, GlassWater, Zap, CupSoda } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { HydrationLog } from '@/lib/types/database'
 
@@ -13,10 +13,20 @@ interface HydrationTrackerProps {
 }
 
 const QUICK_ADD_OPTIONS = [
-  { label: 'Glass', amount: 250, icon: GlassWater },
-  { label: 'Bottle', amount: 500, icon: Droplets },
-  { label: 'Coffee', amount: 200, icon: Coffee },
+  { label: 'Glass', amount: 250, icon: GlassWater, beverageType: 'water' as const },
+  { label: 'Bottle', amount: 500, icon: Droplets, beverageType: 'water' as const },
+  { label: 'Sports', amount: 500, icon: Zap, beverageType: 'sports_drink' as const },
+  { label: 'Coffee', amount: 200, icon: Coffee, beverageType: 'coffee' as const },
 ]
+
+const BEVERAGE_LABELS: Record<string, string> = {
+  water: 'Water',
+  electrolytes: 'Electrolytes',
+  sports_drink: 'Sports Drink',
+  coffee: 'Coffee',
+  tea: 'Tea',
+  other: 'Other',
+}
 
 export default function HydrationTracker({ logs, targetMl, totalMl }: HydrationTrackerProps) {
   const router = useRouter()
@@ -83,7 +93,7 @@ export default function HydrationTracker({ logs, targetMl, totalMl }: HydrationT
         {QUICK_ADD_OPTIONS.map(option => (
           <button
             key={option.label}
-            onClick={() => handleQuickAdd(option.amount, option.label.toLowerCase())}
+            onClick={() => handleQuickAdd(option.amount, option.beverageType)}
             disabled={isLogging}
             className="flex-1 flex flex-col items-center gap-1 p-2 bg-white/50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
           >
@@ -102,7 +112,7 @@ export default function HydrationTracker({ logs, targetMl, totalMl }: HydrationT
           <div className="space-y-1">
             {logs.slice(0, 3).map(log => (
               <div key={log.id} className="flex justify-between text-xs text-blue-700 dark:text-blue-300">
-                <span className="capitalize">{log.beverage_type || 'Water'}</span>
+                <span>{BEVERAGE_LABELS[log.beverage_type] || 'Water'}</span>
                 <span>{log.amount_ml}ml</span>
               </div>
             ))}

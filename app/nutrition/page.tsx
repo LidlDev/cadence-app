@@ -34,7 +34,7 @@ export default async function NutritionPage() {
     .select('*')
     .eq('user_id', user.id)
     .eq('log_date', today)
-    .order('logged_at', { ascending: true })
+    .order('created_at', { ascending: true })
 
   // Fetch today's hydration
   const { data: todayHydration } = await supabase
@@ -42,7 +42,7 @@ export default async function NutritionPage() {
     .select('*')
     .eq('user_id', user.id)
     .eq('log_date', today)
-    .order('logged_at', { ascending: false })
+    .order('created_at', { ascending: false })
 
   // Fetch today's summary
   const { data: todaySummary } = await supabase

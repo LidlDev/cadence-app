@@ -535,7 +535,7 @@ export const nutritionTools = [
           },
           beverage_type: {
             type: 'string',
-            enum: ['water', 'coffee', 'tea', 'sports_drink', 'juice', 'other'],
+            enum: ['water', 'electrolytes', 'sports_drink', 'coffee', 'tea', 'other'],
             description: 'Type of beverage',
           },
           date: {
