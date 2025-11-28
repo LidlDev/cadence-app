@@ -477,4 +477,172 @@ export const strengthTrainingTools = [
   },
 ]
 
-export const allTrainingTools = [...trainingPlanTools, ...strengthTrainingTools]
+// Nutrition Tools
+export const nutritionTools = [
+  {
+    type: 'function' as const,
+    function: {
+      name: 'log_meal',
+      description: 'Log a meal or food item for the user. Use when user says they ate something.',
+      parameters: {
+        type: 'object',
+        properties: {
+          meal_type: {
+            type: 'string',
+            enum: ['breakfast', 'lunch', 'dinner', 'snack', 'pre_workout', 'post_workout'],
+            description: 'Type of meal',
+          },
+          meal_name: {
+            type: 'string',
+            description: 'Name or description of the meal',
+          },
+          foods: {
+            type: 'array',
+            description: 'List of foods in the meal',
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string' },
+                quantity: { type: 'number' },
+                calories: { type: 'number' },
+                protein_g: { type: 'number' },
+                carbs_g: { type: 'number' },
+                fat_g: { type: 'number' },
+              },
+              required: ['name'],
+            },
+          },
+          date: {
+            type: 'string',
+            description: 'Date in YYYY-MM-DD format (defaults to today)',
+          },
+        },
+        required: ['meal_type', 'foods'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'log_hydration',
+      description: 'Log water or beverage intake for the user.',
+      parameters: {
+        type: 'object',
+        properties: {
+          amount_ml: {
+            type: 'number',
+            description: 'Amount in milliliters',
+          },
+          beverage_type: {
+            type: 'string',
+            enum: ['water', 'coffee', 'tea', 'sports_drink', 'juice', 'other'],
+            description: 'Type of beverage',
+          },
+          date: {
+            type: 'string',
+            description: 'Date in YYYY-MM-DD format (defaults to today)',
+          },
+        },
+        required: ['amount_ml'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'get_nutrition_summary',
+      description: 'Get nutrition summary for a specific date or date range.',
+      parameters: {
+        type: 'object',
+        properties: {
+          date: {
+            type: 'string',
+            description: 'Date in YYYY-MM-DD format (defaults to today)',
+          },
+          include_meals: {
+            type: 'boolean',
+            description: 'Whether to include meal details',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'analyze_nutrition',
+      description: 'Analyze nutrition patterns and provide insights based on training.',
+      parameters: {
+        type: 'object',
+        properties: {
+          days: {
+            type: 'number',
+            description: 'Number of days to analyze (default 7)',
+          },
+          focus: {
+            type: 'string',
+            enum: ['macros', 'hydration', 'timing', 'training_alignment', 'all'],
+            description: 'What aspect to focus the analysis on',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'adjust_nutrition_targets',
+      description: 'Adjust daily nutrition targets based on user request.',
+      parameters: {
+        type: 'object',
+        properties: {
+          target_type: {
+            type: 'string',
+            enum: ['calories', 'protein', 'carbs', 'fat', 'hydration'],
+            description: 'Which target to adjust',
+          },
+          adjustment: {
+            type: 'string',
+            enum: ['increase', 'decrease', 'set'],
+            description: 'Type of adjustment',
+          },
+          value: {
+            type: 'number',
+            description: 'Value for the adjustment (percentage for increase/decrease, absolute for set)',
+          },
+        },
+        required: ['target_type', 'adjustment', 'value'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'get_meal_suggestions',
+      description: 'Get meal suggestions based on remaining macros and preferences.',
+      parameters: {
+        type: 'object',
+        properties: {
+          meal_type: {
+            type: 'string',
+            enum: ['breakfast', 'lunch', 'dinner', 'snack', 'pre_workout', 'post_workout'],
+            description: 'Type of meal to suggest',
+          },
+          constraints: {
+            type: 'object',
+            properties: {
+              max_calories: { type: 'number' },
+              min_protein: { type: 'number' },
+              quick_prep: { type: 'boolean' },
+            },
+          },
+        },
+        required: ['meal_type'],
+      },
+    },
+  },
+]
+
+export const allTrainingTools = [...trainingPlanTools, ...strengthTrainingTools, ...nutritionTools]

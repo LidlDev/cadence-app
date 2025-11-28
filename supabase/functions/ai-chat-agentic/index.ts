@@ -202,6 +202,28 @@ You have access to powerful tools that can modify the user's training plan! When
 - "Change squats to 4 sets of 8 reps"
 - "Generate 2 more weeks of strength sessions"
 
+### 🥗 Nutrition Functions:
+
+#### Logging:
+- **log_meal**: Log a meal or food item with macros
+- **log_hydration**: Log water or beverage intake
+
+#### Analysis:
+- **get_nutrition_summary**: Get nutrition summary for a date
+- **analyze_nutrition**: Analyze nutrition patterns and training alignment
+
+#### Adjustments:
+- **adjust_nutrition_targets**: Modify daily macro/calorie targets
+- **get_meal_suggestions**: Get meal ideas based on remaining macros
+
+### Nutrition Examples:
+- "I just had a chicken salad for lunch"
+- "Log 500ml of water"
+- "How are my macros looking today?"
+- "What should I eat for dinner to hit my protein goal?"
+- "Increase my carb target by 10%"
+- "Analyze my nutrition this week"
+
 ### Important:
 - For single run changes, use modify_single_run with the specific run ID from the training plan context
 - For plan-wide optimization, use analyze_and_optimize_plan with specific modifications
@@ -348,6 +370,114 @@ You have access to powerful tools that can modify the user's training plan! When
               role: 'tool',
               tool_call_id: toolCall.id,
               content: JSON.stringify(result),
+            })
+            continue
+          }
+          // Handle nutrition functions directly in edge function
+          else if (functionName === 'log_meal') {
+            const today = new Date().toISOString().split('T')[0]
+            const mealDate = functionArgs.date || today
+
+            // Estimate macros if not provided
+            const foods = functionArgs.foods || []
+            let totalCals = 0, totalProtein = 0, totalCarbs = 0, totalFat = 0
+
+            for (const food of foods) {
+              totalCals += food.calories || 0
+              totalProtein += food.protein_g || 0
+              totalCarbs += food.carbs_g || 0
+              totalFat += food.fat_g || 0
+            }
+
+            const { data: mealLog, error: mealError } = await supabase
+              .from('meal_logs')
+              .insert({
+                user_id: user.id,
+                log_date: mealDate,
+                meal_type: functionArgs.meal_type,
+                name: functionArgs.meal_name || functionArgs.meal_type,
+                total_calories: totalCals,
+                total_protein_g: totalProtein,
+                total_carbs_g: totalCarbs,
+                total_fat_g: totalFat,
+                logged_at: new Date().toISOString(),
+              })
+              .select()
+              .single()
+
+            functionResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify(mealError ? { error: mealError.message } : { success: true, meal: mealLog }),
+            })
+            continue
+          }
+          else if (functionName === 'log_hydration') {
+            const today = new Date().toISOString().split('T')[0]
+
+            const { data: hydrationLog, error: hydrationError } = await supabase
+              .from('hydration_logs')
+              .insert({
+                user_id: user.id,
+                log_date: functionArgs.date || today,
+                amount_ml: functionArgs.amount_ml,
+                beverage_type: functionArgs.beverage_type || 'water',
+                logged_at: new Date().toISOString(),
+              })
+              .select()
+              .single()
+
+            functionResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify(hydrationError ? { error: hydrationError.message } : { success: true, log: hydrationLog }),
+            })
+            continue
+          }
+          else if (functionName === 'get_nutrition_summary') {
+            const today = new Date().toISOString().split('T')[0]
+            const targetDate = functionArgs.date || today
+
+            const { data: target } = await supabase
+              .from('daily_nutrition_targets')
+              .select('*')
+              .eq('user_id', user.id)
+              .eq('target_date', targetDate)
+              .single()
+
+            const { data: meals } = await supabase
+              .from('meal_logs')
+              .select('*')
+              .eq('user_id', user.id)
+              .eq('log_date', targetDate)
+
+            const { data: hydration } = await supabase
+              .from('hydration_logs')
+              .select('*')
+              .eq('user_id', user.id)
+              .eq('log_date', targetDate)
+
+            const totalCals = meals?.reduce((sum, m) => sum + (m.total_calories || 0), 0) || 0
+            const totalProtein = meals?.reduce((sum, m) => sum + (m.total_protein_g || 0), 0) || 0
+            const totalCarbs = meals?.reduce((sum, m) => sum + (m.total_carbs_g || 0), 0) || 0
+            const totalFat = meals?.reduce((sum, m) => sum + (m.total_fat_g || 0), 0) || 0
+            const totalHydration = hydration?.reduce((sum, h) => sum + (h.amount_ml || 0), 0) || 0
+
+            functionResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify({
+                date: targetDate,
+                target,
+                actual: { calories: totalCals, protein_g: totalProtein, carbs_g: totalCarbs, fat_g: totalFat, hydration_ml: totalHydration },
+                meals: functionArgs.include_meals ? meals : undefined,
+                remaining: target ? {
+                  calories: target.target_calories - totalCals,
+                  protein_g: target.target_protein_g - totalProtein,
+                  carbs_g: target.target_carbs_g - totalCarbs,
+                  fat_g: target.target_fat_g - totalFat,
+                } : null,
+              }),
             })
             continue
           }
