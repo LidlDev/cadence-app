@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Dumbbell, CheckCircle, Clock, Save, Loader2, ChevronDown, ChevronUp, Plus, Trash2, Search } from 'lucide-react'
+import { X, Dumbbell, CheckCircle, Clock, Save, Loader2, ChevronDown, ChevronUp, Plus, Trash2, Search, Calendar } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { StrengthSession, SessionExercise, Exercise } from '@/lib/types/database'
 import { format } from 'date-fns'
@@ -22,6 +22,7 @@ export default function EditStrengthSessionModal({ session, isOpen, onClose, onS
   const [rpe, setRpe] = useState(session.rpe || 5)
   const [duration, setDuration] = useState(session.actual_duration || session.estimated_duration)
   const [notes, setNotes] = useState(session.notes || '')
+  const [scheduledDate, setScheduledDate] = useState(session.scheduled_date)
   const [expandedExercise, setExpandedExercise] = useState<string | null>(null)
   const [showAddExercise, setShowAddExercise] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -95,10 +96,11 @@ export default function EditStrengthSessionModal({ session, isOpen, onClose, onS
   const handleSave = async () => {
     setSaving(true)
     const supabase = createClient()
-    
+
     const { error } = await supabase
       .from('strength_sessions')
       .update({
+        scheduled_date: scheduledDate,
         completed,
         completed_at: completed ? new Date().toISOString() : null,
         actual_duration: duration,
@@ -142,6 +144,28 @@ export default function EditStrengthSessionModal({ session, isOpen, onClose, onS
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
+          {/* Schedule Date */}
+          <div className="mb-6 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+                <h3 className="font-semibold text-slate-900 dark:text-white">Scheduled Date</h3>
+              </div>
+              <input
+                type="date"
+                value={scheduledDate}
+                onChange={(e) => setScheduledDate(e.target.value)}
+                className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              />
+            </div>
+            {scheduledDate !== session.scheduled_date && (
+              <p className="mt-2 text-sm text-orange-600 dark:text-orange-400 flex items-center gap-1">
+                <span>📅</span>
+                Rescheduled from {format(new Date(session.scheduled_date + 'T00:00:00'), 'MMM d')} to {format(new Date(scheduledDate + 'T00:00:00'), 'MMM d')}
+              </p>
+            )}
+          </div>
+
           {/* Warmup */}
           {session.warmup_notes && (
             <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl">
