@@ -33,20 +33,55 @@ export default function StrengthClient({ sessions, plan, userId }: StrengthClien
 
     try {
       const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
+      const { data: { session: authSession } } = await supabase.auth.getSession()
 
-      const response = await fetch('/api/strength-plan/extend', {
+      if (!authSession) {
+        throw new Error('Not authenticated')
+      }
+
+      // Get active strength plan
+      const { data: plan, error: planError } = await supabase
+        .from('strength_training_plans')
+        .select('*')
+        .eq('user_id', authSession.user.id)
+        .eq('status', 'active')
+        .single()
+
+      if (planError || !plan) {
+        throw new Error('No active strength plan found')
+      }
+
+      // Get recent sessions for progression context
+      const { data: recentSessions } = await supabase
+        .from('strength_sessions')
+        .select('*, session_exercises:session_exercises(*, exercise:exercises(*))')
+        .eq('strength_plan_id', plan.id)
+        .order('week_number', { ascending: false })
+        .order('scheduled_date', { ascending: false })
+        .limit(10)
+
+      if (!recentSessions || recentSessions.length === 0) {
+        throw new Error('No existing sessions to build from')
+      }
+
+      // Call edge function directly (bypasses Vercel 10s timeout)
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+      const response = await fetch(`${supabaseUrl}/functions/v1/extend-strength-plan`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
+          'Authorization': `Bearer ${authSession.access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ weeks_to_add: weeks })
+        body: JSON.stringify({
+          plan,
+          recentSessions,
+          weeksToAdd: weeks
+        })
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to extend plan')
+        const errorText = await response.text()
+        throw new Error(errorText || 'Failed to extend plan')
       }
 
       router.refresh()

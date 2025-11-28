@@ -299,8 +299,57 @@ You have access to powerful tools that can modify the user's training plan! When
             endpoint = 'strength-plan/modify'
           }
           else if (functionName === 'extend_strength_plan') {
-            action = 'extend_plan'
-            endpoint = 'strength-plan/extend'
+            // Handle extend_strength_plan specially - call edge function directly
+            const weeksToAdd = functionArgs.weeks_to_add || 2
+
+            // Get active plan
+            const { data: plan } = await supabase
+              .from('strength_training_plans')
+              .select('*')
+              .eq('status', 'active')
+              .single()
+
+            if (!plan) {
+              functionResults.push({
+                role: 'tool',
+                tool_call_id: toolCall.id,
+                content: JSON.stringify({ error: 'No active strength plan found' }),
+              })
+              continue
+            }
+
+            // Get recent sessions
+            const { data: recentSessions } = await supabase
+              .from('strength_sessions')
+              .select('*, session_exercises:session_exercises(*, exercise:exercises(*))')
+              .eq('strength_plan_id', plan.id)
+              .order('week_number', { ascending: false })
+              .order('scheduled_date', { ascending: false })
+              .limit(10)
+
+            // Call extend-strength-plan edge function directly
+            const extendResponse = await fetch(`${supabaseUrl}/functions/v1/extend-strength-plan`, {
+              method: 'POST',
+              headers: {
+                'Authorization': authHeader,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ plan, recentSessions, weeksToAdd }),
+            })
+
+            let result
+            if (extendResponse.ok) {
+              result = await extendResponse.json()
+            } else {
+              result = { error: await extendResponse.text() }
+            }
+
+            functionResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify(result),
+            })
+            continue
           }
 
           // Get app URL from environment or construct from Supabase URL
