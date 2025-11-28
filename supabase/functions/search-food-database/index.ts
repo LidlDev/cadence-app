@@ -14,9 +14,97 @@ interface FoodSearchResult {
   protein_g: number
   carbs_g: number
   fat_g: number
+  fiber_g?: number
+  sugar_g?: number
   serving_size: number
   serving_unit: string
-  source: 'fatsecret' | 'openfoodfacts' | 'cached'
+  source: 'usda' | 'openfoodfacts' | 'cached'
+}
+
+// Search USDA FoodData Central API
+async function searchUSDA(query: string, apiKey: string): Promise<FoodSearchResult[]> {
+  try {
+    console.log('Searching USDA for:', query)
+    const response = await fetch(
+      `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${apiKey}&query=${encodeURIComponent(query)}&pageSize=10&dataType=Foundation,SR%20Legacy,Branded`
+    )
+
+    if (!response.ok) {
+      console.error('USDA API error:', response.status)
+      return []
+    }
+
+    const data = await response.json()
+    console.log('USDA results count:', data.foods?.length || 0)
+
+    return (data.foods || []).map((food: any) => {
+      // Extract nutrients from the foodNutrients array
+      const nutrients = food.foodNutrients || []
+      const getNutrient = (name: string) => {
+        const n = nutrients.find((n: any) => n.nutrientName?.toLowerCase().includes(name.toLowerCase()))
+        return n?.value || 0
+      }
+
+      return {
+        id: `usda_${food.fdcId}`,
+        name: food.description || food.lowercaseDescription || 'Unknown',
+        brand: food.brandName || food.brandOwner,
+        calories: getNutrient('energy'),
+        protein_g: getNutrient('protein'),
+        carbs_g: getNutrient('carbohydrate'),
+        fat_g: getNutrient('total lipid') || getNutrient('fat'),
+        fiber_g: getNutrient('fiber'),
+        sugar_g: getNutrient('sugars'),
+        serving_size: food.servingSize || 100,
+        serving_unit: food.servingSizeUnit || 'g',
+        source: 'usda' as const,
+      }
+    })
+  } catch (e) {
+    console.error('USDA search error:', e)
+    return []
+  }
+}
+
+// Search Open Food Facts API (text search)
+async function searchOpenFoodFacts(query: string): Promise<FoodSearchResult[]> {
+  try {
+    console.log('Searching Open Food Facts for:', query)
+    const response = await fetch(
+      `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&json=1&page_size=10&fields=code,product_name,brands,nutriments,serving_size,image_url`
+    )
+
+    if (!response.ok) {
+      console.error('Open Food Facts API error:', response.status)
+      return []
+    }
+
+    const data = await response.json()
+    console.log('Open Food Facts results count:', data.products?.length || 0)
+
+    return (data.products || [])
+      .filter((p: any) => p.product_name) // Only include products with names
+      .map((p: any) => {
+        const n = p.nutriments || {}
+        return {
+          id: `off_${p.code}`,
+          name: p.product_name,
+          brand: p.brands,
+          calories: n['energy-kcal_100g'] || Math.round((n['energy_100g'] || 0) / 4.184),
+          protein_g: n.proteins_100g || 0,
+          carbs_g: n.carbohydrates_100g || 0,
+          fat_g: n.fat_100g || 0,
+          fiber_g: n.fiber_100g,
+          sugar_g: n.sugars_100g,
+          serving_size: 100,
+          serving_unit: 'g',
+          source: 'openfoodfacts' as const,
+        }
+      })
+  } catch (e) {
+    console.error('Open Food Facts search error:', e)
+    return []
+  }
 }
 
 serve(async (req) => {
@@ -32,8 +120,8 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const fatSecretClientId = Deno.env.get('FATSECRET_CLIENT_ID')
-    const fatSecretClientSecret = Deno.env.get('FATSECRET_CLIENT_SECRET')
+    // USDA API key - uses DEMO_KEY if not set (rate limited but works)
+    const usdaApiKey = Deno.env.get('USDA_API_KEY') || 'DEMO_KEY'
 
     const supabase = createClient(supabaseUrl, supabaseKey)
     
@@ -66,33 +154,37 @@ serve(async (req) => {
       }
     }
 
-    // If barcode provided, try Open Food Facts first (free, no auth)
+    // If barcode provided, try Open Food Facts barcode lookup
     if (barcode) {
       try {
+        console.log('Looking up barcode:', barcode)
         const offResponse = await fetch(
           `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`
         )
         const offData = await offResponse.json()
-        
+
         if (offData.status === 1 && offData.product) {
           const p = offData.product
           const nutriments = p.nutriments || {}
-          
-          const foodItem = {
+
+          const foodItem: FoodSearchResult = {
             id: `off_${barcode}`,
             name: p.product_name || 'Unknown Product',
             brand: p.brands,
-            calories: nutriments['energy-kcal_100g'] || 0,
+            calories: nutriments['energy-kcal_100g'] || Math.round((nutriments['energy_100g'] || 0) / 4.184),
             protein_g: nutriments.proteins_100g || 0,
             carbs_g: nutriments.carbohydrates_100g || 0,
             fat_g: nutriments.fat_100g || 0,
+            fiber_g: nutriments.fiber_100g,
+            sugar_g: nutriments.sugars_100g,
             serving_size: 100,
             serving_unit: 'g',
-            source: 'openfoodfacts' as const,
+            source: 'openfoodfacts',
           }
-          
+
           results.unshift(foodItem) // Add to front
-          
+          console.log('Barcode found:', foodItem.name)
+
           // Cache for future use
           await supabase.from('food_items').upsert({
             external_id: barcode,
@@ -111,100 +203,45 @@ serve(async (req) => {
             serving_unit: 'g',
             image_url: p.image_url,
           }, { onConflict: 'barcode' })
+        } else {
+          console.log('Barcode not found in Open Food Facts')
         }
       } catch (e) {
-        console.error('Open Food Facts error:', e)
+        console.error('Open Food Facts barcode error:', e)
       }
     }
 
-    // Search FatSecret API if we have credentials and need more results
-    console.log('FatSecret credentials present:', !!fatSecretClientId, !!fatSecretClientSecret)
+    // Text search: Query USDA and Open Food Facts in parallel
+    if (query && results.length < 10) {
+      console.log('Starting parallel food search for:', query)
 
-    if (fatSecretClientId && fatSecretClientSecret && query && results.length < 10) {
-      try {
-        // Get OAuth 2.0 access token
-        console.log('Requesting FatSecret token...')
-        const tokenResponse = await fetch('https://oauth.fatsecret.com/connect/token', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: new URLSearchParams({
-            grant_type: 'client_credentials',
-            client_id: fatSecretClientId,
-            client_secret: fatSecretClientSecret,
-            scope: 'basic',
-          }),
-        })
+      const [usdaResults, offResults] = await Promise.all([
+        searchUSDA(query, usdaApiKey),
+        searchOpenFoodFacts(query),
+      ])
 
-        const tokenData = await tokenResponse.json()
-        console.log('Token response:', tokenResponse.status, tokenData.error || 'success')
-        const accessToken = tokenData.access_token
+      console.log(`Search complete - USDA: ${usdaResults.length}, OFF: ${offResults.length}`)
 
-        if (accessToken) {
-          // Search foods using the correct FatSecret REST API format
-          console.log('Searching FatSecret for:', query)
-          const searchUrl = `https://platform.fatsecret.com/rest/server.api`
-          const searchParams = new URLSearchParams({
-            method: 'foods.search',
-            search_expression: query,
-            format: 'json',
-            max_results: '10',
-          })
+      // Combine results, prioritizing USDA for generic foods
+      // and Open Food Facts for branded products
+      const combinedResults: FoodSearchResult[] = []
 
-          const searchResponse = await fetch(`${searchUrl}?${searchParams}`, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-            },
-          })
+      // Add USDA results first (better for generic foods)
+      combinedResults.push(...usdaResults.slice(0, 8))
 
-          const searchData = await searchResponse.json()
-          console.log('FatSecret raw response:', JSON.stringify(searchData).substring(0, 500))
-          console.log('FatSecret search response status:', searchResponse.status)
-
-          // Handle both array and single object responses
-          const foodsData = searchData.foods?.food
-          const foods = foodsData ? (Array.isArray(foodsData) ? foodsData : [foodsData]) : []
-          console.log('FatSecret foods count:', foods.length)
-
-          for (const food of foods) {
-            // Parse the description to extract macros
-            // FatSecret format: "Per 100g - Calories: 131kcal | Fat: 1.10g | Carbs: 25.00g | Protein: 5.00g"
-            const desc = food.food_description || ''
-            console.log('Food description:', desc)
-
-            // More flexible regex to match FatSecret format
-            const caloriesMatch = desc.match(/Calories:\s*([\d.]+)/i)
-            const fatMatch = desc.match(/Fat:\s*([\d.]+)/i)
-            const carbsMatch = desc.match(/Carbs:\s*([\d.]+)/i)
-            const proteinMatch = desc.match(/Protein:\s*([\d.]+)/i)
-
-            // Extract serving info from description
-            const servingMatch = desc.match(/Per\s+([\d.]+)(g|ml|oz)/i)
-
-            results.push({
-              id: `fs_${food.food_id}`,
-              name: food.food_name,
-              brand: food.brand_name,
-              calories: caloriesMatch ? parseFloat(caloriesMatch[1]) : 0,
-              protein_g: proteinMatch ? parseFloat(proteinMatch[1]) : 0,
-              carbs_g: carbsMatch ? parseFloat(carbsMatch[1]) : 0,
-              fat_g: fatMatch ? parseFloat(fatMatch[1]) : 0,
-              serving_size: servingMatch ? parseFloat(servingMatch[1]) : 100,
-              serving_unit: servingMatch ? servingMatch[2] : 'g',
-              source: 'fatsecret',
-            })
-          }
-          console.log('Results after FatSecret:', results.length)
-        } else {
-          console.error('No access token received:', tokenData)
+      // Add Open Food Facts results, avoiding duplicates
+      for (const offFood of offResults) {
+        const isDuplicate = combinedResults.some(existing =>
+          existing.name.toLowerCase().includes(offFood.name.toLowerCase()) ||
+          offFood.name.toLowerCase().includes(existing.name.toLowerCase())
+        )
+        if (!isDuplicate && combinedResults.length < 15) {
+          combinedResults.push(offFood)
         }
-      } catch (e) {
-        console.error('FatSecret API error:', e)
       }
-    } else {
-      console.log('Skipping FatSecret: credentials=', !!fatSecretClientId, 'query=', !!query, 'results=', results.length)
+
+      results.push(...combinedResults)
+      console.log('Total results after API search:', results.length)
     }
 
     return new Response(
