@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X, Search, Plus, Loader2, ScanBarcode, Trash2, Clock, Camera } from 'lucide-react'
+import { X, Search, Plus, Loader2, ScanBarcode, Trash2, Clock, BookOpen, ChefHat, Star, Save } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 
@@ -34,6 +34,22 @@ interface RecentFood {
   serving_unit: string
 }
 
+interface UserRecipe {
+  id: string
+  name: string
+  description?: string
+  category?: string
+  total_calories: number
+  total_protein_g: number
+  total_carbs_g: number
+  total_fat_g: number
+  servings: number
+  use_count: number
+  is_favorite: boolean
+}
+
+type TabType = 'search' | 'recipes' | 'create'
+
 interface LogMealModalProps {
   mealType: string
   date: Date
@@ -42,21 +58,35 @@ interface LogMealModalProps {
 }
 
 export default function LogMealModal({ mealType, date, onClose, onSave }: LogMealModalProps) {
+  const [activeTab, setActiveTab] = useState<TabType>('search')
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<FoodItem[]>([])
   const [selectedFoods, setSelectedFoods] = useState<SelectedFood[]>([])
   const [recentFoods, setRecentFoods] = useState<RecentFood[]>([])
+  const [userRecipes, setUserRecipes] = useState<UserRecipe[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isLoadingRecipes, setIsLoadingRecipes] = useState(false)
   const [mealName, setMealName] = useState('')
   const [showBarcodeScan, setShowBarcodeScan] = useState(false)
   const [barcodeInput, setBarcodeInput] = useState('')
   const [isLoadingRecent, setIsLoadingRecent] = useState(true)
   const barcodeInputRef = useRef<HTMLInputElement>(null)
 
-  // Load recent foods on mount
+  // Create Recipe state
+  const [recipeName, setRecipeName] = useState('')
+  const [recipeDescription, setRecipeDescription] = useState('')
+  const [recipeCategory, setRecipeCategory] = useState<string>('other')
+  const [recipeServings, setRecipeServings] = useState(1)
+  const [recipeIngredients, setRecipeIngredients] = useState<SelectedFood[]>([])
+  const [recipeSearchQuery, setRecipeSearchQuery] = useState('')
+  const [recipeSearchResults, setRecipeSearchResults] = useState<FoodItem[]>([])
+  const [isSearchingRecipe, setIsSearchingRecipe] = useState(false)
+  const [isSavingRecipe, setIsSavingRecipe] = useState(false)
+
+  // Load recent foods and user recipes on mount
   useEffect(() => {
-    const loadRecentFoods = async () => {
+    const loadData = async () => {
       try {
         const supabase = createClient()
         const { data: { user } } = await supabase.auth.getUser()
@@ -91,13 +121,25 @@ export default function LogMealModal({ mealType, date, onClose, onSave }: LogMea
           }).slice(0, 5)
           setRecentFoods(unique)
         }
+
+        // Load user recipes
+        const { data: recipes } = await supabase
+          .from('user_recipes')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('use_count', { ascending: false })
+          .limit(20)
+
+        if (recipes) {
+          setUserRecipes(recipes)
+        }
       } catch (error) {
-        console.error('Error loading recent foods:', error)
+        console.error('Error loading data:', error)
       } finally {
         setIsLoadingRecent(false)
       }
     }
-    loadRecentFoods()
+    loadData()
   }, [])
 
   // Debounced search
@@ -261,6 +303,166 @@ export default function LogMealModal({ mealType, date, onClose, onSave }: LogMea
     }
   }
 
+  // Add recipe to selected foods (for logging)
+  const addRecipeToMeal = async (recipe: UserRecipe) => {
+    const food: FoodItem = {
+      id: recipe.id,
+      name: recipe.name,
+      brand: 'Custom Recipe',
+      calories: recipe.total_calories / recipe.servings,
+      protein_g: recipe.total_protein_g / recipe.servings,
+      carbs_g: recipe.total_carbs_g / recipe.servings,
+      fat_g: recipe.total_fat_g / recipe.servings,
+      serving_size: 1,
+      serving_unit: 'serving',
+      source: 'recipe',
+    }
+    setSelectedFoods(prev => [...prev, { ...food, quantity: 1 }])
+
+    // Update use count
+    const supabase = createClient()
+    await supabase
+      .from('user_recipes')
+      .update({ use_count: recipe.use_count + 1, last_used_at: new Date().toISOString() })
+      .eq('id', recipe.id)
+
+    setActiveTab('search')
+  }
+
+  // Recipe search (for adding ingredients)
+  useEffect(() => {
+    if (recipeSearchQuery.length < 2) {
+      setRecipeSearchResults([])
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingRecipe(true)
+      try {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) return
+
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+        const response = await fetch(`${supabaseUrl}/functions/v1/search-food-database`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ query: recipeSearchQuery }),
+        })
+
+        const data = await response.json()
+        setRecipeSearchResults(data.results || [])
+      } catch (error) {
+        console.error('Recipe search error:', error)
+      } finally {
+        setIsSearchingRecipe(false)
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [recipeSearchQuery])
+
+  const addIngredientToRecipe = (food: FoodItem) => {
+    setRecipeIngredients(prev => [...prev, { ...food, quantity: 1 }])
+    setRecipeSearchQuery('')
+    setRecipeSearchResults([])
+  }
+
+  const removeIngredientFromRecipe = (index: number) => {
+    setRecipeIngredients(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const updateIngredientQuantity = (index: number, quantity: number) => {
+    setRecipeIngredients(prev => prev.map((f, i) => i === index ? { ...f, quantity } : f))
+  }
+
+  // Calculate recipe totals
+  const recipeTotalCalories = recipeIngredients.reduce((sum, f) => sum + f.calories * f.quantity, 0)
+  const recipeTotalProtein = recipeIngredients.reduce((sum, f) => sum + f.protein_g * f.quantity, 0)
+  const recipeTotalCarbs = recipeIngredients.reduce((sum, f) => sum + f.carbs_g * f.quantity, 0)
+  const recipeTotalFat = recipeIngredients.reduce((sum, f) => sum + f.fat_g * f.quantity, 0)
+
+  const handleSaveRecipe = async () => {
+    if (!recipeName.trim() || recipeIngredients.length === 0) return
+
+    setIsSavingRecipe(true)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+
+      // Create recipe
+      const { data: recipe, error: recipeError } = await supabase
+        .from('user_recipes')
+        .insert({
+          user_id: user.id,
+          name: recipeName.trim(),
+          description: recipeDescription.trim() || null,
+          category: recipeCategory,
+          total_calories: Math.round(recipeTotalCalories),
+          total_protein_g: Math.round(recipeTotalProtein * 10) / 10,
+          total_carbs_g: Math.round(recipeTotalCarbs * 10) / 10,
+          total_fat_g: Math.round(recipeTotalFat * 10) / 10,
+          servings: recipeServings,
+        })
+        .select()
+        .single()
+
+      if (recipeError) throw recipeError
+
+      // Create recipe ingredients
+      const ingredients = recipeIngredients.map((food, index) => ({
+        recipe_id: recipe.id,
+        food_item_id: food.source === 'cached' ? food.id : null,
+        food_name: food.name,
+        food_brand: food.brand,
+        quantity: food.quantity,
+        serving_size: food.serving_size,
+        serving_unit: food.serving_unit,
+        calories: Math.round(food.calories * food.quantity),
+        protein_g: Math.round(food.protein_g * food.quantity * 10) / 10,
+        carbs_g: Math.round(food.carbs_g * food.quantity * 10) / 10,
+        fat_g: Math.round(food.fat_g * food.quantity * 10) / 10,
+        sort_order: index,
+      }))
+
+      await supabase.from('user_recipe_ingredients').insert(ingredients)
+
+      // Add to local state
+      setUserRecipes(prev => [recipe, ...prev])
+
+      // Reset form
+      setRecipeName('')
+      setRecipeDescription('')
+      setRecipeCategory('other')
+      setRecipeServings(1)
+      setRecipeIngredients([])
+      setActiveTab('recipes')
+
+      alert('Recipe saved successfully!')
+    } catch (error) {
+      console.error('Error saving recipe:', error)
+      alert('Failed to save recipe. Please try again.')
+    } finally {
+      setIsSavingRecipe(false)
+    }
+  }
+
+  const toggleFavorite = async (recipe: UserRecipe) => {
+    const supabase = createClient()
+    await supabase
+      .from('user_recipes')
+      .update({ is_favorite: !recipe.is_favorite })
+      .eq('id', recipe.id)
+
+    setUserRecipes(prev => prev.map(r =>
+      r.id === recipe.id ? { ...r, is_favorite: !r.is_favorite } : r
+    ))
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
@@ -274,16 +476,57 @@ export default function LogMealModal({ mealType, date, onClose, onSave }: LogMea
           </button>
         </div>
 
+        {/* Tabs */}
+        <div className="flex border-b border-slate-200 dark:border-slate-700">
+          <button
+            onClick={() => setActiveTab('search')}
+            className={`flex-1 py-3 px-4 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
+              activeTab === 'search'
+                ? 'text-[#FF6F00] border-b-2 border-[#FF6F00]'
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
+          >
+            <Search className="w-4 h-4" />
+            Search
+          </button>
+          <button
+            onClick={() => setActiveTab('recipes')}
+            className={`flex-1 py-3 px-4 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
+              activeTab === 'recipes'
+                ? 'text-[#FF6F00] border-b-2 border-[#FF6F00]'
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
+            My Recipes
+          </button>
+          <button
+            onClick={() => setActiveTab('create')}
+            className={`flex-1 py-3 px-4 text-sm font-medium flex items-center justify-center gap-2 transition-colors ${
+              activeTab === 'create'
+                ? 'text-[#FF6F00] border-b-2 border-[#FF6F00]'
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
+          >
+            <ChefHat className="w-4 h-4" />
+            Create
+          </button>
+        </div>
+
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* Meal Name */}
-          <input
-            type="text"
-            value={mealName}
-            onChange={(e) => setMealName(e.target.value)}
-            placeholder="Meal name (optional)"
-            className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700"
-          />
+
+          {/* SEARCH TAB */}
+          {activeTab === 'search' && (
+            <>
+              {/* Meal Name */}
+              <input
+                type="text"
+                value={mealName}
+                onChange={(e) => setMealName(e.target.value)}
+                placeholder="Meal name (optional)"
+                className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700"
+              />
 
           {/* Search and Barcode Toggle */}
           <div className="flex gap-2">
@@ -411,37 +654,261 @@ export default function LogMealModal({ mealType, date, onClose, onSave }: LogMea
               ))}
             </div>
           )}
+            </>
+          )}
+
+          {/* MY RECIPES TAB */}
+          {activeTab === 'recipes' && (
+            <>
+              {userRecipes.length === 0 ? (
+                <div className="text-center py-8">
+                  <ChefHat className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+                  <p className="text-slate-500 dark:text-slate-400">No saved recipes yet</p>
+                  <button
+                    onClick={() => setActiveTab('create')}
+                    className="mt-3 text-[#FF6F00] font-medium hover:underline"
+                  >
+                    Create your first recipe
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {userRecipes.map(recipe => (
+                    <div
+                      key={recipe.id}
+                      className="p-3 bg-slate-50 dark:bg-slate-700 rounded-lg flex items-center gap-3"
+                    >
+                      <button
+                        onClick={() => toggleFavorite(recipe)}
+                        className={`p-1 rounded ${recipe.is_favorite ? 'text-yellow-500' : 'text-slate-300 hover:text-yellow-500'}`}
+                      >
+                        <Star className="w-4 h-4" fill={recipe.is_favorite ? 'currentColor' : 'none'} />
+                      </button>
+                      <div className="flex-1">
+                        <p className="font-medium text-slate-900 dark:text-white">{recipe.name}</p>
+                        <p className="text-xs text-slate-500">
+                          {Math.round(recipe.total_calories / recipe.servings)} kcal/serving •
+                          P: {Math.round(recipe.total_protein_g / recipe.servings)}g •
+                          C: {Math.round(recipe.total_carbs_g / recipe.servings)}g •
+                          F: {Math.round(recipe.total_fat_g / recipe.servings)}g
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => addRecipeToMeal(recipe)}
+                        className="px-3 py-1.5 bg-[#FF6F00] text-white text-sm rounded-lg font-medium hover:bg-[#E65100]"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* CREATE RECIPE TAB */}
+          {activeTab === 'create' && (
+            <>
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  value={recipeName}
+                  onChange={(e) => setRecipeName(e.target.value)}
+                  placeholder="Recipe name *"
+                  className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700"
+                />
+                <input
+                  type="text"
+                  value={recipeDescription}
+                  onChange={(e) => setRecipeDescription(e.target.value)}
+                  placeholder="Description (optional)"
+                  className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700"
+                />
+                <div className="flex gap-3">
+                  <select
+                    value={recipeCategory}
+                    onChange={(e) => setRecipeCategory(e.target.value)}
+                    className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700"
+                  >
+                    <option value="breakfast">Breakfast</option>
+                    <option value="lunch">Lunch</option>
+                    <option value="dinner">Dinner</option>
+                    <option value="snack">Snack</option>
+                    <option value="pre_workout">Pre-Workout</option>
+                    <option value="post_workout">Post-Workout</option>
+                    <option value="other">Other</option>
+                  </select>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-slate-600 dark:text-slate-400">Servings:</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={recipeServings}
+                      onChange={(e) => setRecipeServings(parseInt(e.target.value) || 1)}
+                      className="w-16 px-2 py-2 text-center rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Ingredient Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <input
+                  type="text"
+                  value={recipeSearchQuery}
+                  onChange={(e) => setRecipeSearchQuery(e.target.value)}
+                  placeholder="Search ingredients to add..."
+                  className="w-full pl-10 pr-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700"
+                />
+                {isSearchingRecipe && (
+                  <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 animate-spin" />
+                )}
+              </div>
+
+              {/* Ingredient Search Results */}
+              {recipeSearchResults.length > 0 && (
+                <div className="border border-slate-200 dark:border-slate-700 rounded-lg divide-y divide-slate-200 dark:divide-slate-700 max-h-32 overflow-y-auto">
+                  {recipeSearchResults.map(food => (
+                    <button
+                      key={food.id}
+                      onClick={() => addIngredientToRecipe(food)}
+                      className="w-full p-2 text-left hover:bg-slate-50 dark:hover:bg-slate-700 flex justify-between items-center text-sm"
+                    >
+                      <div>
+                        <p className="font-medium text-slate-900 dark:text-white">{food.name}</p>
+                        {food.brand && <p className="text-xs text-slate-500">{food.brand}</p>}
+                      </div>
+                      <p className="text-slate-600 dark:text-slate-400">{food.calories} kcal</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Recipe Ingredients */}
+              {recipeIngredients.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="font-medium text-slate-900 dark:text-white">Ingredients</h3>
+                  {recipeIngredients.map((food, index) => (
+                    <div key={index} className="flex items-center gap-3 p-2 bg-slate-50 dark:bg-slate-700 rounded-lg">
+                      <div className="flex-1">
+                        <p className="font-medium text-slate-900 dark:text-white text-sm">{food.name}</p>
+                        <p className="text-xs text-slate-500">{Math.round(food.calories * food.quantity)} kcal</p>
+                      </div>
+                      <input
+                        type="number"
+                        min="0.5"
+                        step="0.5"
+                        value={food.quantity}
+                        onChange={(e) => updateIngredientQuantity(index, parseFloat(e.target.value) || 1)}
+                        className="w-14 px-2 py-1 text-center text-sm rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800"
+                      />
+                      <button onClick={() => removeIngredientFromRecipe(index)} className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Recipe Totals */}
+                  <div className="p-3 bg-[#FF6F00]/10 rounded-lg">
+                    <p className="text-sm font-medium text-slate-900 dark:text-white">
+                      Total: {Math.round(recipeTotalCalories)} kcal •
+                      P: {Math.round(recipeTotalProtein)}g •
+                      C: {Math.round(recipeTotalCarbs)}g •
+                      F: {Math.round(recipeTotalFat)}g
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Per serving ({recipeServings}): {Math.round(recipeTotalCalories / recipeServings)} kcal
+                    </p>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {/* Footer */}
         <div className="p-4 border-t border-slate-200 dark:border-slate-700">
-          {/* Totals */}
-          {selectedFoods.length > 0 && (
-            <div className="flex justify-between text-sm mb-4 px-2">
-              <span className="text-slate-600 dark:text-slate-400">Total:</span>
-              <span className="font-medium text-slate-900 dark:text-white">
-                {Math.round(totalCalories)} kcal • P: {Math.round(totalProtein)}g • C: {Math.round(totalCarbs)}g • F: {Math.round(totalFat)}g
-              </span>
-            </div>
+          {/* Search Tab Footer */}
+          {activeTab === 'search' && (
+            <>
+              {selectedFoods.length > 0 && (
+                <div className="flex justify-between text-sm mb-4 px-2">
+                  <span className="text-slate-600 dark:text-slate-400">Total:</span>
+                  <span className="font-medium text-slate-900 dark:text-white">
+                    {Math.round(totalCalories)} kcal • P: {Math.round(totalProtein)}g • C: {Math.round(totalCarbs)}g • F: {Math.round(totalFat)}g
+                  </span>
+                </div>
+              )}
+              <button
+                onClick={handleSave}
+                disabled={selectedFoods.length === 0 || isSaving}
+                className="w-full py-3 bg-[#FF6F00] hover:bg-[#E65100] disabled:bg-slate-300 dark:disabled:bg-slate-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    Log Meal
+                  </>
+                )}
+              </button>
+            </>
           )}
 
-          <button
-            onClick={handleSave}
-            disabled={selectedFoods.length === 0 || isSaving}
-            className="w-full py-3 bg-orange-600 hover:bg-orange-700 disabled:bg-slate-300 dark:disabled:bg-slate-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Plus className="w-4 h-4" />
-                Log Meal
-              </>
-            )}
-          </button>
+          {/* Recipes Tab Footer */}
+          {activeTab === 'recipes' && selectedFoods.length > 0 && (
+            <>
+              <div className="flex justify-between text-sm mb-4 px-2">
+                <span className="text-slate-600 dark:text-slate-400">Total:</span>
+                <span className="font-medium text-slate-900 dark:text-white">
+                  {Math.round(totalCalories)} kcal • P: {Math.round(totalProtein)}g • C: {Math.round(totalCarbs)}g • F: {Math.round(totalFat)}g
+                </span>
+              </div>
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="w-full py-3 bg-[#FF6F00] hover:bg-[#E65100] disabled:bg-slate-300 dark:disabled:bg-slate-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    Log Meal
+                  </>
+                )}
+              </button>
+            </>
+          )}
+
+          {/* Create Tab Footer */}
+          {activeTab === 'create' && (
+            <button
+              onClick={handleSaveRecipe}
+              disabled={!recipeName.trim() || recipeIngredients.length === 0 || isSavingRecipe}
+              className="w-full py-3 bg-[#FF6F00] hover:bg-[#E65100] disabled:bg-slate-300 dark:disabled:bg-slate-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              {isSavingRecipe ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Save Recipe
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>

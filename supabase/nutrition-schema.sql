@@ -296,6 +296,70 @@ CREATE TABLE IF NOT EXISTS user_recent_foods (
 );
 
 -- =============================================================================
+-- 9. USER RECIPES (Custom meals/recipes)
+-- =============================================================================
+-- Users can combine ingredients into reusable recipes
+
+CREATE TABLE IF NOT EXISTS user_recipes (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+
+  name TEXT NOT NULL,
+  description TEXT,
+  category TEXT CHECK (category IN ('breakfast', 'lunch', 'dinner', 'snack', 'pre_workout', 'post_workout', 'other')),
+
+  -- Total nutrition (calculated from ingredients)
+  total_calories DECIMAL(8,2) DEFAULT 0,
+  total_protein_g DECIMAL(8,2) DEFAULT 0,
+  total_carbs_g DECIMAL(8,2) DEFAULT 0,
+  total_fat_g DECIMAL(8,2) DEFAULT 0,
+  total_fiber_g DECIMAL(8,2) DEFAULT 0,
+
+  -- Serving info
+  servings INTEGER DEFAULT 1,
+
+  -- Usage tracking
+  use_count INTEGER DEFAULT 0,
+  last_used_at TIMESTAMPTZ,
+  is_favorite BOOLEAN DEFAULT false,
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  UNIQUE(user_id, name)
+);
+
+-- =============================================================================
+-- 10. USER RECIPE INGREDIENTS
+-- =============================================================================
+-- Ingredients that make up a user's custom recipe
+
+CREATE TABLE IF NOT EXISTS user_recipe_ingredients (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  recipe_id UUID NOT NULL REFERENCES user_recipes(id) ON DELETE CASCADE,
+  food_item_id UUID REFERENCES food_items(id),
+
+  -- Food info (stored for quick access even if from API)
+  food_name TEXT NOT NULL,
+  food_brand TEXT,
+
+  -- Quantity
+  quantity DECIMAL(8,2) NOT NULL DEFAULT 1,
+  serving_size DECIMAL(8,2),
+  serving_unit TEXT DEFAULT 'g',
+
+  -- Nutrition per this ingredient amount
+  calories DECIMAL(8,2),
+  protein_g DECIMAL(8,2),
+  carbs_g DECIMAL(8,2),
+  fat_g DECIMAL(8,2),
+  fiber_g DECIMAL(8,2),
+
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- =============================================================================
 -- INDEXES FOR PERFORMANCE
 -- =============================================================================
 
@@ -311,6 +375,9 @@ CREATE INDEX IF NOT EXISTS idx_meal_log_items_meal_id ON meal_log_items(meal_log
 CREATE INDEX IF NOT EXISTS idx_hydration_logs_user_date ON hydration_logs(user_id, log_date);
 CREATE INDEX IF NOT EXISTS idx_daily_summaries_user_date ON daily_nutrition_summaries(user_id, summary_date);
 CREATE INDEX IF NOT EXISTS idx_recent_foods_user_id ON user_recent_foods(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_recipes_user_id ON user_recipes(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_recipes_category ON user_recipes(category);
+CREATE INDEX IF NOT EXISTS idx_user_recipe_ingredients_recipe_id ON user_recipe_ingredients(recipe_id);
 
 -- =============================================================================
 -- ROW LEVEL SECURITY POLICIES
@@ -325,6 +392,8 @@ ALTER TABLE meal_log_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE hydration_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE daily_nutrition_summaries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_recent_foods ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_recipes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_recipe_ingredients ENABLE ROW LEVEL SECURITY;
 
 -- Nutrition Plans: Users can only access their own
 CREATE POLICY "Users can view own nutrition plans" ON nutrition_plans FOR SELECT USING (auth.uid() = user_id);
@@ -375,6 +444,22 @@ CREATE POLICY "Users can view own recent foods" ON user_recent_foods FOR SELECT 
 CREATE POLICY "Users can insert own recent foods" ON user_recent_foods FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update own recent foods" ON user_recent_foods FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete own recent foods" ON user_recent_foods FOR DELETE USING (auth.uid() = user_id);
+
+-- User Recipes: Users can only access their own
+CREATE POLICY "Users can view own recipes" ON user_recipes FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own recipes" ON user_recipes FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own recipes" ON user_recipes FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own recipes" ON user_recipes FOR DELETE USING (auth.uid() = user_id);
+
+-- User Recipe Ingredients: Access through parent recipe
+CREATE POLICY "Users can view own recipe ingredients" ON user_recipe_ingredients FOR SELECT
+  USING (EXISTS (SELECT 1 FROM user_recipes WHERE user_recipes.id = user_recipe_ingredients.recipe_id AND user_recipes.user_id = auth.uid()));
+CREATE POLICY "Users can insert own recipe ingredients" ON user_recipe_ingredients FOR INSERT
+  WITH CHECK (EXISTS (SELECT 1 FROM user_recipes WHERE user_recipes.id = user_recipe_ingredients.recipe_id AND user_recipes.user_id = auth.uid()));
+CREATE POLICY "Users can update own recipe ingredients" ON user_recipe_ingredients FOR UPDATE
+  USING (EXISTS (SELECT 1 FROM user_recipes WHERE user_recipes.id = user_recipe_ingredients.recipe_id AND user_recipes.user_id = auth.uid()));
+CREATE POLICY "Users can delete own recipe ingredients" ON user_recipe_ingredients FOR DELETE
+  USING (EXISTS (SELECT 1 FROM user_recipes WHERE user_recipes.id = user_recipe_ingredients.recipe_id AND user_recipes.user_id = auth.uid()));
 
 -- =============================================================================
 -- FUNCTIONS & TRIGGERS
