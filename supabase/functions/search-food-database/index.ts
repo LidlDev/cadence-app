@@ -118,9 +118,12 @@ serve(async (req) => {
     }
 
     // Search FatSecret API if we have credentials and need more results
+    console.log('FatSecret credentials present:', !!fatSecretClientId, !!fatSecretClientSecret)
+
     if (fatSecretClientId && fatSecretClientSecret && query && results.length < 10) {
       try {
         // Get OAuth 2.0 access token
+        console.log('Requesting FatSecret token...')
         const tokenResponse = await fetch('https://oauth.fatsecret.com/connect/token', {
           method: 'POST',
           headers: {
@@ -133,48 +136,75 @@ serve(async (req) => {
             scope: 'basic',
           }),
         })
-        
+
         const tokenData = await tokenResponse.json()
+        console.log('Token response:', tokenResponse.status, tokenData.error || 'success')
         const accessToken = tokenData.access_token
 
         if (accessToken) {
-          // Search foods
-          const searchResponse = await fetch(
-            `https://platform.fatsecret.com/rest/server.api?method=foods.search&search_expression=${encodeURIComponent(query)}&format=json&max_results=10`,
-            {
-              headers: {
-                'Authorization': `Bearer ${accessToken}`,
-              },
-            }
-          )
-          
+          // Search foods using the correct FatSecret REST API format
+          console.log('Searching FatSecret for:', query)
+          const searchUrl = `https://platform.fatsecret.com/rest/server.api`
+          const searchParams = new URLSearchParams({
+            method: 'foods.search',
+            search_expression: query,
+            format: 'json',
+            max_results: '10',
+          })
+
+          const searchResponse = await fetch(`${searchUrl}?${searchParams}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+            },
+          })
+
           const searchData = await searchResponse.json()
-          const foods = searchData.foods?.food || []
-          
-          for (const food of Array.isArray(foods) ? foods : [foods]) {
+          console.log('FatSecret raw response:', JSON.stringify(searchData).substring(0, 500))
+          console.log('FatSecret search response status:', searchResponse.status)
+
+          // Handle both array and single object responses
+          const foodsData = searchData.foods?.food
+          const foods = foodsData ? (Array.isArray(foodsData) ? foodsData : [foodsData]) : []
+          console.log('FatSecret foods count:', foods.length)
+
+          for (const food of foods) {
             // Parse the description to extract macros
+            // FatSecret format: "Per 100g - Calories: 131kcal | Fat: 1.10g | Carbs: 25.00g | Protein: 5.00g"
             const desc = food.food_description || ''
-            const match = desc.match(/Calories: (\d+).*Fat: ([\d.]+)g.*Carbs: ([\d.]+)g.*Protein: ([\d.]+)g/)
-            
-            if (match) {
-              results.push({
-                id: `fs_${food.food_id}`,
-                name: food.food_name,
-                brand: food.brand_name,
-                calories: parseFloat(match[1]),
-                protein_g: parseFloat(match[4]),
-                carbs_g: parseFloat(match[3]),
-                fat_g: parseFloat(match[2]),
-                serving_size: 100,
-                serving_unit: 'g',
-                source: 'fatsecret',
-              })
-            }
+            console.log('Food description:', desc)
+
+            // More flexible regex to match FatSecret format
+            const caloriesMatch = desc.match(/Calories:\s*([\d.]+)/i)
+            const fatMatch = desc.match(/Fat:\s*([\d.]+)/i)
+            const carbsMatch = desc.match(/Carbs:\s*([\d.]+)/i)
+            const proteinMatch = desc.match(/Protein:\s*([\d.]+)/i)
+
+            // Extract serving info from description
+            const servingMatch = desc.match(/Per\s+([\d.]+)(g|ml|oz)/i)
+
+            results.push({
+              id: `fs_${food.food_id}`,
+              name: food.food_name,
+              brand: food.brand_name,
+              calories: caloriesMatch ? parseFloat(caloriesMatch[1]) : 0,
+              protein_g: proteinMatch ? parseFloat(proteinMatch[1]) : 0,
+              carbs_g: carbsMatch ? parseFloat(carbsMatch[1]) : 0,
+              fat_g: fatMatch ? parseFloat(fatMatch[1]) : 0,
+              serving_size: servingMatch ? parseFloat(servingMatch[1]) : 100,
+              serving_unit: servingMatch ? servingMatch[2] : 'g',
+              source: 'fatsecret',
+            })
           }
+          console.log('Results after FatSecret:', results.length)
+        } else {
+          console.error('No access token received:', tokenData)
         }
       } catch (e) {
         console.error('FatSecret API error:', e)
       }
+    } else {
+      console.log('Skipping FatSecret: credentials=', !!fatSecretClientId, 'query=', !!query, 'results=', results.length)
     }
 
     return new Response(

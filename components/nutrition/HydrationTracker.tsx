@@ -33,13 +33,14 @@ export default function HydrationTracker({ logs, targetMl, totalMl }: HydrationT
       
       if (!user) throw new Error('Not authenticated')
 
-      await supabase.from('hydration_logs').insert({
+      const { error } = await supabase.from('hydration_logs').insert({
         user_id: user.id,
         log_date: new Date().toISOString().split('T')[0],
         amount_ml: amount,
         beverage_type: beverageType,
-        logged_at: new Date().toISOString(),
       })
+
+      if (error) throw error
 
       router.refresh()
     } catch (error) {
