@@ -84,6 +84,10 @@ export default function LogMealModal({ mealType, date, onClose, onSave }: LogMea
   const [isSearchingRecipe, setIsSearchingRecipe] = useState(false)
   const [isSavingRecipe, setIsSavingRecipe] = useState(false)
 
+  // Recipe scaling state
+  const [selectedRecipe, setSelectedRecipe] = useState<UserRecipe | null>(null)
+  const [scaleServings, setScaleServings] = useState(1)
+
   // Load recent foods and user recipes on mount
   useEffect(() => {
     const loadData = async () => {
@@ -303,18 +307,26 @@ export default function LogMealModal({ mealType, date, onClose, onSave }: LogMea
     }
   }
 
-  // Add recipe to selected foods (for logging)
-  const addRecipeToMeal = async (recipe: UserRecipe) => {
+  // Open recipe scaling modal
+  const openRecipeScaling = (recipe: UserRecipe) => {
+    setSelectedRecipe(recipe)
+    setScaleServings(1)
+  }
+
+  // Add scaled recipe to selected foods (for logging)
+  const addScaledRecipeToMeal = async () => {
+    if (!selectedRecipe) return
+
     const food: FoodItem = {
-      id: recipe.id,
-      name: recipe.name,
+      id: selectedRecipe.id,
+      name: selectedRecipe.name,
       brand: 'Custom Recipe',
-      calories: recipe.total_calories / recipe.servings,
-      protein_g: recipe.total_protein_g / recipe.servings,
-      carbs_g: recipe.total_carbs_g / recipe.servings,
-      fat_g: recipe.total_fat_g / recipe.servings,
-      serving_size: 1,
-      serving_unit: 'serving',
+      calories: (selectedRecipe.total_calories / selectedRecipe.servings) * scaleServings,
+      protein_g: (selectedRecipe.total_protein_g / selectedRecipe.servings) * scaleServings,
+      carbs_g: (selectedRecipe.total_carbs_g / selectedRecipe.servings) * scaleServings,
+      fat_g: (selectedRecipe.total_fat_g / selectedRecipe.servings) * scaleServings,
+      serving_size: scaleServings,
+      serving_unit: scaleServings === 1 ? 'serving' : 'servings',
       source: 'recipe',
     }
     setSelectedFoods(prev => [...prev, { ...food, quantity: 1 }])
@@ -323,9 +335,10 @@ export default function LogMealModal({ mealType, date, onClose, onSave }: LogMea
     const supabase = createClient()
     await supabase
       .from('user_recipes')
-      .update({ use_count: recipe.use_count + 1, last_used_at: new Date().toISOString() })
-      .eq('id', recipe.id)
+      .update({ use_count: selectedRecipe.use_count + 1, last_used_at: new Date().toISOString() })
+      .eq('id', selectedRecipe.id)
 
+    setSelectedRecipe(null)
     setActiveTab('search')
   }
 
@@ -676,10 +689,11 @@ export default function LogMealModal({ mealType, date, onClose, onSave }: LogMea
                   {userRecipes.map(recipe => (
                     <div
                       key={recipe.id}
-                      className="p-3 bg-slate-50 dark:bg-slate-700 rounded-lg flex items-center gap-3"
+                      className="p-3 bg-slate-50 dark:bg-slate-700 rounded-lg flex items-center gap-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
+                      onClick={() => openRecipeScaling(recipe)}
                     >
                       <button
-                        onClick={() => toggleFavorite(recipe)}
+                        onClick={(e) => { e.stopPropagation(); toggleFavorite(recipe); }}
                         className={`p-1 rounded ${recipe.is_favorite ? 'text-yellow-500' : 'text-slate-300 hover:text-yellow-500'}`}
                       >
                         <Star className="w-4 h-4" fill={recipe.is_favorite ? 'currentColor' : 'none'} />
@@ -692,13 +706,11 @@ export default function LogMealModal({ mealType, date, onClose, onSave }: LogMea
                           C: {Math.round(recipe.total_carbs_g / recipe.servings)}g •
                           F: {Math.round(recipe.total_fat_g / recipe.servings)}g
                         </p>
+                        <p className="text-xs text-slate-400 mt-0.5">{recipe.servings} serving{recipe.servings > 1 ? 's' : ''} per recipe</p>
                       </div>
-                      <button
-                        onClick={() => addRecipeToMeal(recipe)}
-                        className="px-3 py-1.5 bg-[#FF6F00] text-white text-sm rounded-lg font-medium hover:bg-[#E65100]"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
+                      <div className="text-[#FF6F00]">
+                        <Plus className="w-5 h-5" />
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -911,6 +923,117 @@ export default function LogMealModal({ mealType, date, onClose, onSave }: LogMea
           )}
         </div>
       </div>
+
+      {/* Recipe Scaling Modal */}
+      {selectedRecipe && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-sm shadow-xl">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-slate-900 dark:text-white">Add Recipe</h3>
+                <button onClick={() => setSelectedRecipe(null)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div>
+                <p className="font-medium text-slate-900 dark:text-white">{selectedRecipe.name}</p>
+                <p className="text-sm text-slate-500">{selectedRecipe.servings} serving{selectedRecipe.servings > 1 ? 's' : ''} per recipe</p>
+              </div>
+
+              {/* Servings Selector */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  How many servings?
+                </label>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setScaleServings(Math.max(0.25, scaleServings - 0.25))}
+                    className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center font-bold text-lg"
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    value={scaleServings}
+                    onChange={(e) => setScaleServings(Math.max(0.25, parseFloat(e.target.value) || 0.25))}
+                    step="0.25"
+                    min="0.25"
+                    className="flex-1 text-center text-xl font-bold py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700"
+                  />
+                  <button
+                    onClick={() => setScaleServings(scaleServings + 0.25)}
+                    className="w-10 h-10 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center font-bold text-lg"
+                  >
+                    +
+                  </button>
+                </div>
+                {/* Quick select buttons */}
+                <div className="flex gap-2 mt-2">
+                  {[0.5, 1, 1.5, 2].map(val => (
+                    <button
+                      key={val}
+                      onClick={() => setScaleServings(val)}
+                      className={`flex-1 py-1.5 text-sm rounded-lg border transition-colors ${
+                        scaleServings === val
+                          ? 'bg-[#FF6F00] text-white border-[#FF6F00]'
+                          : 'border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {val}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Scaled Nutrition Preview */}
+              <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-3">
+                <p className="text-sm font-medium text-orange-800 dark:text-orange-200 mb-2">
+                  Nutrition for {scaleServings} serving{scaleServings !== 1 ? 's' : ''}:
+                </p>
+                <div className="grid grid-cols-4 gap-2 text-center">
+                  <div>
+                    <p className="text-lg font-bold text-orange-600 dark:text-orange-400">
+                      {Math.round((selectedRecipe.total_calories / selectedRecipe.servings) * scaleServings)}
+                    </p>
+                    <p className="text-xs text-orange-700 dark:text-orange-300">kcal</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-orange-600 dark:text-orange-400">
+                      {Math.round((selectedRecipe.total_protein_g / selectedRecipe.servings) * scaleServings)}g
+                    </p>
+                    <p className="text-xs text-orange-700 dark:text-orange-300">Protein</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-orange-600 dark:text-orange-400">
+                      {Math.round((selectedRecipe.total_carbs_g / selectedRecipe.servings) * scaleServings)}g
+                    </p>
+                    <p className="text-xs text-orange-700 dark:text-orange-300">Carbs</p>
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-orange-600 dark:text-orange-400">
+                      {Math.round((selectedRecipe.total_fat_g / selectedRecipe.servings) * scaleServings)}g
+                    </p>
+                    <p className="text-xs text-orange-700 dark:text-orange-300">Fat</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+              <button
+                onClick={addScaledRecipeToMeal}
+                className="w-full py-3 bg-[#FF6F00] hover:bg-[#E65100] text-white rounded-lg font-medium flex items-center justify-center gap-2"
+              >
+                <Plus className="w-5 h-5" />
+                Add {scaleServings} Serving{scaleServings !== 1 ? 's' : ''}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

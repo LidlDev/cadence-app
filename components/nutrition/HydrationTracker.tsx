@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Droplets, Plus, Coffee, GlassWater, Zap, CupSoda } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { HydrationLog } from '@/lib/types/database'
+import LogHydrationModal from './LogHydrationModal'
 
 interface HydrationTrackerProps {
   logs: HydrationLog[]
@@ -15,7 +16,6 @@ interface HydrationTrackerProps {
 const QUICK_ADD_OPTIONS = [
   { label: 'Glass', amount: 250, icon: GlassWater, beverageType: 'water' as const },
   { label: 'Bottle', amount: 500, icon: Droplets, beverageType: 'water' as const },
-  { label: 'Sports', amount: 500, icon: Zap, beverageType: 'sports_drink' as const },
   { label: 'Coffee', amount: 200, icon: Coffee, beverageType: 'coffee' as const },
 ]
 
@@ -31,6 +31,7 @@ const BEVERAGE_LABELS: Record<string, string> = {
 export default function HydrationTracker({ logs, targetMl, totalMl }: HydrationTrackerProps) {
   const router = useRouter()
   const [isLogging, setIsLogging] = useState(false)
+  const [showModal, setShowModal] = useState(false)
   
   const percentComplete = Math.min((totalMl / targetMl) * 100, 100)
   const remaining = Math.max(targetMl - totalMl, 0)
@@ -89,13 +90,13 @@ export default function HydrationTracker({ logs, targetMl, totalMl }: HydrationT
       </p>
 
       {/* Quick Add Buttons */}
-      <div className="flex gap-2">
+      <div className="grid grid-cols-4 gap-2">
         {QUICK_ADD_OPTIONS.map(option => (
           <button
             key={option.label}
             onClick={() => handleQuickAdd(option.amount, option.beverageType)}
             disabled={isLogging}
-            className="flex-1 flex flex-col items-center gap-1 p-2 bg-white/50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
+            className="flex flex-col items-center gap-1 p-2 bg-white/50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
           >
             <option.icon className="w-5 h-5 text-blue-600" />
             <span className="text-xs font-medium text-blue-800 dark:text-blue-200">
@@ -103,6 +104,15 @@ export default function HydrationTracker({ logs, targetMl, totalMl }: HydrationT
             </span>
           </button>
         ))}
+        {/* Custom button to open modal */}
+        <button
+          onClick={() => setShowModal(true)}
+          disabled={isLogging}
+          className="flex flex-col items-center gap-1 p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50"
+        >
+          <Plus className="w-5 h-5" />
+          <span className="text-xs font-medium">Custom</span>
+        </button>
       </div>
 
       {/* Recent Logs */}
@@ -118,6 +128,14 @@ export default function HydrationTracker({ logs, targetMl, totalMl }: HydrationT
             ))}
           </div>
         </div>
+      )}
+
+      {/* Hydration Modal */}
+      {showModal && (
+        <LogHydrationModal
+          onClose={() => setShowModal(false)}
+          onSave={() => router.refresh()}
+        />
       )}
     </div>
   )
