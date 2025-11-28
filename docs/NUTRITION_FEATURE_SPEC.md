@@ -261,6 +261,7 @@ New nutrition-specific tools for the agentic AI chat:
 - [x] Open Food Facts integration
 - [x] Food search in meal logging
 - [x] Barcode scanning (manual entry)
+
 - [x] Recent foods quick-add
 - [ ] Camera-based barcode scanning (requires native camera API)
 
