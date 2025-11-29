@@ -56,7 +56,7 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { messages, conversationId, conversationTitle } = await req.json()
+    const { messages, conversationId, conversationTitle, stream: shouldStream = true } = await req.json()
 
     // Get OpenAI API key
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
@@ -86,9 +86,9 @@ serve(async (req) => {
       console.error('Failed to load user context:', contextResponse.status)
     }
 
-    console.log('Calling OpenAI API with streaming')
+    console.log(`Calling OpenAI API with streaming=${shouldStream}`)
 
-    // Call OpenAI API with streaming
+    // Call OpenAI API
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -103,7 +103,7 @@ serve(async (req) => {
         ],
         temperature: 0.8,
         max_tokens: 4000,
-        stream: true,
+        stream: shouldStream,
       }),
     })
 
@@ -111,7 +111,33 @@ serve(async (req) => {
       throw new Error(`OpenAI API error: ${response.statusText}`)
     }
 
-    // Create a streaming response
+    // Non-streaming mode - for mobile clients where fetch streaming doesn't work well
+    if (!shouldStream) {
+      const data = await response.json()
+      const fullMessage = data.choices[0]?.message?.content || ''
+
+      // Store conversation and messages
+      if (fullMessage && messages.length > 0) {
+        const userMessage = messages[messages.length - 1].content
+        const convId = await storeConversation(supabase, user.id, conversationId, conversationTitle || 'New Chat', userMessage, fullMessage)
+
+        // Store memories
+        extractAndStoreMemories(supabase, user.id, userMessage, fullMessage)
+          .catch(err => console.error('Error storing memories:', err))
+
+        return new Response(
+          JSON.stringify({ message: fullMessage, conversationId: convId }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      return new Response(
+        JSON.stringify({ message: fullMessage }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Streaming mode - for web clients
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder()
