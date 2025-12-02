@@ -1,5 +1,6 @@
 // Supabase Edge Function for linking a Strava activity to a run
 // Mirrors the web app's /api/strava/link-activity endpoint
+// Now also updates Strava activity description with training plan info
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
@@ -7,6 +8,56 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+// Format training plan info for Strava description
+function formatTrainingPlanDescription(run: any, trainingPlan: any): string {
+  const lines: string[] = []
+
+  // Add Cadence header
+  lines.push('🏃 CADENCE TRAINING')
+  lines.push('━━━━━━━━━━━━━━━━━━━')
+
+  // Training plan name
+  if (trainingPlan?.name) {
+    lines.push(`📋 ${trainingPlan.name}`)
+  }
+
+  // Week number
+  if (run.week_number) {
+    lines.push(`📅 Week ${run.week_number}${trainingPlan?.weeks ? ` of ${trainingPlan.weeks}` : ''}`)
+  }
+
+  // Run type and distance
+  const distanceStr = run.planned_distance ? `${run.planned_distance}km` : ''
+  if (run.run_type) {
+    lines.push(`🎯 ${run.run_type}${distanceStr ? ` - ${distanceStr}` : ''}`)
+  }
+
+  // Target pace if available
+  if (run.target_pace) {
+    lines.push(`⏱️ Target: ${run.target_pace}/km`)
+  }
+
+  // Notes from the training plan (workout instructions)
+  if (run.notes) {
+    lines.push('')
+    lines.push('📝 Workout:')
+    lines.push(run.notes)
+  }
+
+  // User comments (post-run reflection)
+  if (run.comments) {
+    lines.push('')
+    lines.push('💭 Notes:')
+    lines.push(run.comments)
+  }
+
+  lines.push('')
+  lines.push('━━━━━━━━━━━━━━━━━━━')
+  lines.push('Tracked with Cadence')
+
+  return lines.join('\n')
 }
 
 serve(async (req) => {
@@ -74,12 +125,24 @@ serve(async (req) => {
       }).eq('user_id', user.id)
     }
 
+    // Fetch run data with training plan info for description update
+    const { data: runData } = await supabase
+      .from('runs')
+      .select(`
+        id, week_number, run_type, planned_distance, target_pace, notes, comments,
+        training_plan_id,
+        training_plans:training_plan_id (id, name, weeks, goal_race)
+      `)
+      .eq('id', runId)
+      .eq('user_id', user.id)
+      .single()
+
     // Fetch detailed activity data
     const activityResponse = await fetch(`https://www.strava.com/api/v3/activities/${stravaActivityId}`,
       { headers: { Authorization: `Bearer ${accessToken}` } })
 
     if (!activityResponse.ok) {
-      return new Response(JSON.stringify({ error: 'Failed to fetch activity details' }), 
+      return new Response(JSON.stringify({ error: 'Failed to fetch activity details' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
@@ -139,7 +202,58 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ success: true, message: 'Successfully linked Strava activity' }), 
+    // Update Strava activity description with training plan info
+    // Prepend training plan info to existing description (but only if not already added)
+    console.log('[strava-link-activity] Run data:', {
+      hasRunData: !!runData,
+      trainingPlanId: runData?.training_plan_id,
+      runType: runData?.run_type,
+      weekNumber: runData?.week_number
+    })
+
+    if (runData && runData.training_plan_id) {
+      const existingDescription = activity.description || ''
+      console.log('[strava-link-activity] Existing Strava description:', existingDescription.substring(0, 100))
+
+      // Check if we've already added Cadence info to avoid duplicates
+      if (!existingDescription.includes('🏃 CADENCE TRAINING')) {
+        const trainingPlan = runData.training_plans
+        const cadenceDescription = formatTrainingPlanDescription(runData, trainingPlan)
+        console.log('[strava-link-activity] Generated Cadence description:', cadenceDescription.substring(0, 100))
+
+        // Combine with existing Strava description (if any)
+        const newDescription = existingDescription
+          ? `${cadenceDescription}\n\n─────────────────\n\n${existingDescription}`
+          : cadenceDescription
+
+        // Update the Strava activity description
+        try {
+          const updateResponse = await fetch(`https://www.strava.com/api/v3/activities/${stravaActivityId}`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ description: newDescription })
+          })
+
+          if (!updateResponse.ok) {
+            console.error('[strava-link-activity] Failed to update Strava description:', await updateResponse.text())
+          } else {
+            console.log('[strava-link-activity] Successfully updated Strava activity description')
+          }
+        } catch (descError) {
+          // Don't fail the whole operation if description update fails
+          console.error('[strava-link-activity] Error updating Strava description:', descError)
+        }
+      } else {
+        console.log('[strava-link-activity] Strava description already contains Cadence info, skipping update')
+      }
+    } else {
+      console.log('[strava-link-activity] Skipping description update - no training plan linked to this run')
+    }
+
+    return new Response(JSON.stringify({ success: true, message: 'Successfully linked Strava activity' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
   } catch (error: any) {

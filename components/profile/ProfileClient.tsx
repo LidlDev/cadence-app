@@ -24,7 +24,7 @@ export default function ProfileClient({ user, profile, stravaConnected, stravaAt
     setConnecting(true)
     const clientId = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID || '185798'
     const redirectUri = `${window.location.origin}/api/strava/callback`
-    const scope = 'read,activity:read_all,profile:read_all'
+    const scope = 'read,activity:read_all,activity:write,profile:read_all'
 
     const authUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`
 
