@@ -53,7 +53,6 @@ export async function GET(request: NextRequest) {
       refresh_token,
       expires_at: new Date(expires_at * 1000).toISOString(),
       athlete_id: athlete.id,
-      scope,
     }, { onConflict: 'user_id' })
 
     if (dbError) {
