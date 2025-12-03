@@ -253,12 +253,30 @@ serve(async (req) => {
       console.log('[strava-link-activity] Skipping description update - no training plan linked to this run')
     }
 
+    // Create notification for Strava sync (single activity linked)
+    try {
+      await supabase
+        .from('notifications')
+        .insert({
+          user_id: user.id,
+          type: 'strava_sync',
+          title: '🔄 Strava Activity Linked',
+          message: `${activity.name} linked successfully`,
+          data: { activityId: stravaActivityId, runId, distance: distanceKm.toFixed(2) },
+          read: false,
+          created_at: new Date().toISOString()
+        })
+      console.log(`[StravaLinkActivity] Created notification for user ${user.id}`)
+    } catch (notifError) {
+      console.error('Error creating Strava link notification:', notifError)
+    }
+
     return new Response(JSON.stringify({ success: true, message: 'Successfully linked Strava activity' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
   } catch (error: any) {
     console.error('Error:', error)
-    return new Response(JSON.stringify({ error: error.message || 'Internal error' }), 
+    return new Response(JSON.stringify({ error: error.message || 'Internal error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 })
