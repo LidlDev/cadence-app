@@ -16,9 +16,52 @@ interface FoodSearchResult {
   fat_g: number
   fiber_g?: number
   sugar_g?: number
+  sodium_mg?: number
   serving_size: number
   serving_unit: string
-  source: 'usda' | 'openfoodfacts' | 'cached'
+  source: 'usda' | 'openfoodfacts' | 'api_ninjas' | 'cached'
+}
+
+// Search API Ninjas Nutrition API (excellent for NLP-style queries like "2 eggs and toast")
+async function searchAPINinjas(query: string, apiKey: string): Promise<FoodSearchResult[]> {
+  try {
+    console.log('Searching API Ninjas for:', query)
+    const response = await fetch(
+      `https://api.api-ninjas.com/v1/nutrition?query=${encodeURIComponent(query)}`,
+      {
+        headers: {
+          'X-Api-Key': apiKey,
+        },
+      }
+    )
+
+    if (!response.ok) {
+      console.error('API Ninjas error:', response.status, await response.text())
+      return []
+    }
+
+    const data = await response.json()
+    console.log('API Ninjas results count:', data?.length || 0)
+
+    // API Ninjas returns an array of food items with nutrition data
+    return (data || []).map((item: any, index: number) => ({
+      id: `apininjas_${Date.now()}_${index}`,
+      name: item.name || 'Unknown',
+      calories: Math.round(item.calories || 0),
+      protein_g: Math.round((item.protein_g || 0) * 10) / 10,
+      carbs_g: Math.round((item.carbohydrates_total_g || 0) * 10) / 10,
+      fat_g: Math.round((item.fat_total_g || 0) * 10) / 10,
+      fiber_g: item.fiber_g ? Math.round(item.fiber_g * 10) / 10 : undefined,
+      sugar_g: item.sugar_g ? Math.round(item.sugar_g * 10) / 10 : undefined,
+      sodium_mg: item.sodium_mg ? Math.round(item.sodium_mg) : undefined,
+      serving_size: Math.round(item.serving_size_g || 100),
+      serving_unit: 'g',
+      source: 'api_ninjas' as const,
+    }))
+  } catch (e) {
+    console.error('API Ninjas search error:', e)
+    return []
+  }
 }
 
 // Search USDA FoodData Central API
@@ -122,13 +165,29 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     // USDA API key - uses DEMO_KEY if not set (rate limited but works)
     const usdaApiKey = Deno.env.get('USDA_API_KEY') || 'DEMO_KEY'
+    // API Ninjas key for NLP-style food queries
+    const apiNinjasKey = Deno.env.get('API_NINJAS_KEY')
 
     const supabase = createClient(supabaseUrl, supabaseKey)
-    
-    const { query, barcode } = await req.json()
-    console.log('Food search:', { query, barcode })
+
+    const { query, barcode, useNLP } = await req.json()
+    console.log('Food search:', { query, barcode, useNLP })
 
     const results: FoodSearchResult[] = []
+
+    // Detect if query looks like NLP (contains quantities, multiple items, etc.)
+    const isNLPQuery = (q: string): boolean => {
+      if (!q) return false
+      // Check for patterns that suggest NLP: numbers, "and", commas, multiple words with quantities
+      const nlpPatterns = [
+        /\d+\s*(g|oz|cup|tbsp|tsp|lb|kg|ml|slice|piece|serving)/i, // quantities with units
+        /\d+\s+\w+/,  // number followed by word (e.g., "2 eggs")
+        /\band\b/i,   // "and" connector
+        /,/,          // comma-separated items
+        /with\s+\w+/i, // "with" something
+      ]
+      return nlpPatterns.some(pattern => pattern.test(q))
+    }
 
     // First, check our cached food_items table
     if (query) {
@@ -211,36 +270,79 @@ serve(async (req) => {
       }
     }
 
-    // Text search: Query USDA and Open Food Facts in parallel
+    // Text search: Determine search strategy based on query type
     if (query && results.length < 10) {
-      console.log('Starting parallel food search for:', query)
+      const shouldUseNLP = useNLP === true || isNLPQuery(query)
+      console.log('Starting food search for:', query, '| NLP mode:', shouldUseNLP)
 
-      const [usdaResults, offResults] = await Promise.all([
-        searchUSDA(query, usdaApiKey),
-        searchOpenFoodFacts(query),
-      ])
+      if (shouldUseNLP && apiNinjasKey) {
+        // For NLP-style queries, use API Ninjas first (best at parsing "2 eggs and toast")
+        console.log('Using API Ninjas for NLP query')
+        const ninjaResults = await searchAPINinjas(query, apiNinjasKey)
 
-      console.log(`Search complete - USDA: ${usdaResults.length}, OFF: ${offResults.length}`)
-
-      // Combine results, prioritizing USDA for generic foods
-      // and Open Food Facts for branded products
-      const combinedResults: FoodSearchResult[] = []
-
-      // Add USDA results first (better for generic foods)
-      combinedResults.push(...usdaResults.slice(0, 8))
-
-      // Add Open Food Facts results, avoiding duplicates
-      for (const offFood of offResults) {
-        const isDuplicate = combinedResults.some(existing =>
-          existing.name.toLowerCase().includes(offFood.name.toLowerCase()) ||
-          offFood.name.toLowerCase().includes(existing.name.toLowerCase())
-        )
-        if (!isDuplicate && combinedResults.length < 15) {
-          combinedResults.push(offFood)
+        if (ninjaResults.length > 0) {
+          // API Ninjas successfully parsed the query - use these results
+          results.push(...ninjaResults)
+          console.log('API Ninjas returned', ninjaResults.length, 'items')
+        } else {
+          // Fall back to traditional search if API Ninjas fails
+          console.log('API Ninjas returned no results, falling back to USDA/OFF')
+          const [usdaResults, offResults] = await Promise.all([
+            searchUSDA(query, usdaApiKey),
+            searchOpenFoodFacts(query),
+          ])
+          results.push(...usdaResults.slice(0, 8))
+          results.push(...offResults.slice(0, 5))
         }
+      } else {
+        // Traditional search: Query all APIs in parallel
+        console.log('Using traditional parallel search (USDA + OFF + API Ninjas)')
+
+        const searchPromises = [
+          searchUSDA(query, usdaApiKey),
+          searchOpenFoodFacts(query),
+        ]
+
+        // Include API Ninjas if key is available
+        if (apiNinjasKey) {
+          searchPromises.push(searchAPINinjas(query, apiNinjasKey))
+        }
+
+        const [usdaResults, offResults, ninjaResults = []] = await Promise.all(searchPromises)
+
+        console.log(`Search complete - USDA: ${usdaResults.length}, OFF: ${offResults.length}, Ninjas: ${ninjaResults.length}`)
+
+        // Combine results, prioritizing API Ninjas (most accurate for portions),
+        // then USDA for generic foods, then Open Food Facts for branded products
+        const combinedResults: FoodSearchResult[] = []
+
+        // Add API Ninjas results first (best portion/serving accuracy)
+        combinedResults.push(...ninjaResults.slice(0, 5))
+
+        // Add USDA results (better for generic foods)
+        for (const usdaFood of usdaResults.slice(0, 8)) {
+          const isDuplicate = combinedResults.some(existing =>
+            existing.name.toLowerCase() === usdaFood.name.toLowerCase()
+          )
+          if (!isDuplicate) {
+            combinedResults.push(usdaFood)
+          }
+        }
+
+        // Add Open Food Facts results, avoiding duplicates
+        for (const offFood of offResults) {
+          const isDuplicate = combinedResults.some(existing =>
+            existing.name.toLowerCase().includes(offFood.name.toLowerCase()) ||
+            offFood.name.toLowerCase().includes(existing.name.toLowerCase())
+          )
+          if (!isDuplicate && combinedResults.length < 20) {
+            combinedResults.push(offFood)
+          }
+        }
+
+        results.push(...combinedResults)
       }
 
-      results.push(...combinedResults)
       console.log('Total results after API search:', results.length)
     }
 

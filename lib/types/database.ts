@@ -271,7 +271,7 @@ export type DayType = 'rest' | 'easy_run' | 'tempo' | 'intervals' | 'long_run' |
 export type TrainingLoad = 'none' | 'low' | 'moderate' | 'high' | 'very_high'
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'pre_workout' | 'post_workout'
 export type BeverageType = 'water' | 'electrolytes' | 'sports_drink' | 'coffee' | 'tea' | 'other'
-export type FoodSource = 'fatsecret' | 'openfoodfacts' | 'manual' | 'ai_estimated'
+export type FoodSource = 'fatsecret' | 'openfoodfacts' | 'manual' | 'ai_estimated' | 'api_ninjas' | 'usda'
 
 export interface NutritionPlan {
   id: string
