@@ -47,7 +47,7 @@ async function searchAPINinjas(query: string, apiKey: string): Promise<FoodSearc
     return (data || []).map((item: any, index: number) => ({
       id: `apininjas_${Date.now()}_${index}`,
       name: item.name || 'Unknown',
-      calories: Math.round(item.calories || 0),
+      calories: Math.round(item.calories || ((item.protein_g || 0) * 4 + (item.carbohydrates_total_g || 0) * 4 + (item.fat_total_g || 0) * 9)),
       protein_g: Math.round((item.protein_g || 0) * 10) / 10,
       carbs_g: Math.round((item.carbohydrates_total_g || 0) * 10) / 10,
       fat_g: Math.round((item.fat_total_g || 0) * 10) / 10,
