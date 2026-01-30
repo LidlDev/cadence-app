@@ -1,8 +1,6 @@
-// Supabase Edge Function for AI Chat with Streaming
-// Handles long-running AI chat requests without timeout constraints
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
+import { allReadTools } from '../_shared/training-plan-tools.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,6 +10,8 @@ const corsHeaders = {
 interface Message {
   role: 'user' | 'assistant' | 'system'
   content: string
+  tool_calls?: any[]
+  function_call?: any
 }
 
 serve(async (req) => {
@@ -88,8 +88,11 @@ serve(async (req) => {
 
     console.log(`Calling OpenAI API with streaming=${shouldStream}`)
 
-    // Call OpenAI API
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Initial request - check for tool calls (non-streaming first to handle decisions)
+    // We use allReadTools to give it read access
+    const tools = allReadTools;
+
+    const initialResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openaiApiKey}`,
@@ -102,42 +105,118 @@ serve(async (req) => {
           ...messages,
         ],
         temperature: 0.8,
+        max_tokens: 1000,
+        tools: tools,
+        tool_choice: 'auto',
+        stream: false,
+      }),
+    })
+
+    if (!initialResponse.ok) {
+      const error = await initialResponse.text()
+      throw new Error(`OpenAI API error: ${initialResponse.statusText} - ${error}`)
+    }
+
+    const initialData = await initialResponse.json()
+    const initialMessage = initialData.choices[0].message
+
+    let finalMessages = [...messages]
+
+    // Check if tools were called
+    if (initialMessage.tool_calls && initialMessage.tool_calls.length > 0) {
+      console.log(`AI called ${initialMessage.tool_calls.length} tools`)
+
+      // Append assistant message with tool calls
+      finalMessages.push(initialMessage)
+
+      const toolResults = []
+
+      for (const toolCall of initialMessage.tool_calls) {
+        const functionName = toolCall.function.name
+        const args = JSON.parse(toolCall.function.arguments)
+
+        console.log(`Executing ${functionName} with args:`, args)
+
+        let result = {}
+        try {
+          if (functionName === 'get_running_metrics') {
+            result = await getRunningMetrics(supabase, user.id, args)
+          } else if (functionName === 'get_strength_pbs') {
+            result = await getStrengthPBs(supabase, user.id, args)
+          } else if (functionName === 'get_recent_activities') {
+            result = await getRecentActivities(supabase, user.id, args)
+          } else if (functionName === 'get_nutrition_logs') {
+            result = await getNutritionLogs(supabase, user.id, args)
+          } else {
+            result = { error: 'Unknown function' }
+          }
+        } catch (e: any) {
+          console.error(`Error executing ${functionName}:`, e)
+          result = { error: e.message }
+        }
+
+        toolResults.push({
+          role: 'tool',
+          tool_call_id: toolCall.tool_call_id || toolCall.id,
+          name: functionName,
+          content: JSON.stringify(result)
+        })
+      }
+
+      finalMessages.push(...toolResults)
+    } else {
+      // If no tools called, we already have the content, but to support streaming consistency
+      // we might want to just return this, OR if streaming was requested, we might need to "fake" stream
+      // or just do a second call if we want to be lazy (but expensive).
+      // Better: if no tools, just return the content we got.
+      // But if existing client expects stream, we should stream. 
+      // ACTUALLY: The client might break if we return JSON when it expects stream.
+      // So if no tools + stream=true, we should probably have just streamed from the start.
+      // Compromise: If no tools, we send the content we got but wrapped in a stream format 
+      // or we just make a second call to stream it (safest implementation, slightly more tokens/time).
+      // Given gpt-4o-mini is cheap and fast, re-streaming the response is acceptable ensuring consistent UX.
+      // Wait, we can't re-stream the SAME response easily without just sending it.
+      // Let's just use the messages array we have (which hasn't changed) and call OpenAI again with stream=true.
+      // This is a bit wasteful but ensures the client gets the `text/event-stream` it expects.
+      console.log('No tools called, proceeding to stream response')
+    }
+
+    // Final response (streaming or not)
+    const finalResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemMessage },
+          ...finalMessages
+        ],
+        temperature: 0.8,
         max_tokens: 4000,
         stream: shouldStream,
       }),
     })
 
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.statusText}`)
+    if (!finalResponse.ok) {
+      throw new Error(`OpenAI API error: ${finalResponse.statusText}`)
     }
 
-    // Non-streaming mode - for mobile clients where fetch streaming doesn't work well
     if (!shouldStream) {
-      const data = await response.json()
-      const fullMessage = data.choices[0]?.message?.content || ''
+      const data = await finalResponse.json()
+      const content = data.choices[0]?.message?.content || ''
 
-      // Store conversation and messages
-      if (fullMessage && messages.length > 0) {
-        const userMessage = messages[messages.length - 1].content
-        const convId = await storeConversation(supabase, user.id, conversationId, conversationTitle || 'New Chat', userMessage, fullMessage)
-
-        // Store memories
-        extractAndStoreMemories(supabase, user.id, userMessage, fullMessage)
-          .catch(err => console.error('Error storing memories:', err))
-
-        return new Response(
-          JSON.stringify({ message: fullMessage, conversationId: convId }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
+      await saveInteraction(supabase, user.id, conversationId, conversationTitle, messages, content)
 
       return new Response(
-        JSON.stringify({ message: fullMessage }),
+        JSON.stringify({ message: content }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Streaming mode - for web clients
+    // Streaming handler
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder()
@@ -145,7 +224,7 @@ serve(async (req) => {
         let fullMessage = ''
 
         try {
-          const reader = response.body?.getReader()
+          const reader = finalResponse.body?.getReader()
           if (!reader) throw new Error('No response body')
 
           while (true) {
@@ -177,17 +256,8 @@ serve(async (req) => {
             }
           }
 
-          // Store conversation and messages after streaming completes (non-blocking)
-          if (fullMessage && messages.length > 0) {
-            const userMessage = messages[messages.length - 1].content
-
-            // Store conversation and messages
-            storeConversation(supabase, user.id, conversationId, conversationTitle || 'New Chat', userMessage, fullMessage)
-              .catch(err => console.error('Error storing conversation:', err))
-
-            // Store memories
-            extractAndStoreMemories(supabase, user.id, userMessage, fullMessage)
-              .catch(err => console.error('Error storing memories:', err))
+          if (fullMessage) {
+            await saveInteraction(supabase, user.id, conversationId, conversationTitle, messages, fullMessage)
           }
 
           controller.close()
@@ -206,6 +276,7 @@ serve(async (req) => {
         'Connection': 'keep-alive',
       },
     })
+
   } catch (error: any) {
     console.error('Error in AI chat:', error)
     return new Response(
@@ -214,6 +285,120 @@ serve(async (req) => {
     )
   }
 })
+
+// --- Helper Functions ---
+
+async function saveInteraction(supabase: any, userId: string, conversationId: string | null, title: string | undefined, messages: any[], responseContent: string) {
+  if (!messages.length) return;
+
+  const userMessage = messages[messages.length - 1].content;
+
+  // Store conversation and messages
+  storeConversation(supabase, userId, conversationId, title || 'New Chat', userMessage, responseContent)
+    .catch(err => console.error('Error storing conversation:', err))
+
+  // Store memories
+  extractAndStoreMemories(supabase, userId, userMessage, responseContent)
+    .catch(err => console.error('Error storing memories:', err))
+}
+
+async function getRunningMetrics(supabase: any, userId: string, args: any) {
+  const { start_date, end_date, metric_type } = args
+
+  const { data: runs, error } = await supabase
+    .from('runs')
+    .select('actual_distance, duration, average_heart_rate, calories, actual_pace, scheduled_date')
+    .eq('user_id', userId)
+    .gte('scheduled_date', start_date)
+    .lte('scheduled_date', end_date)
+    .eq('completed', true)
+
+  if (error) throw error
+
+  // Calculate aggregations
+  const totalDistance = runs.reduce((acc: number, r: any) => acc + (r.actual_distance || 0), 0)
+  const count = runs.length
+  const totalDuration = runs.reduce((acc: number, r: any) => acc + (r.duration || 0), 0) // minutes
+
+  return {
+    period: { start: start_date, end: end_date },
+    metrics: {
+      total_distance_km: parseFloat(totalDistance.toFixed(2)),
+      run_count: count,
+      total_duration_min: totalDuration,
+      avg_distance: count ? parseFloat((totalDistance / count).toFixed(2)) : 0,
+      details: metric_type === 'distance' ? runs.map((r: any) => ({ date: r.scheduled_date, distance: r.actual_distance })) : undefined
+    }
+  }
+}
+
+async function getStrengthPBs(supabase: any, userId: string, args: any) {
+  let query = supabase.from('strength_pbs').select('*').eq('user_id', userId).order('weight', { ascending: false })
+
+  if (args.exercise_names && args.exercise_names.length > 0) {
+    query = query.in('exercise_name', args.exercise_names)
+  } else {
+    query = query.limit(5)
+  }
+
+  const { data, error } = await query
+  if (error) throw error
+  return data
+}
+
+async function getRecentActivities(supabase: any, userId: string, args: any) {
+  const limit = Math.min(args.limit || 5, 10)
+  const activities = []
+
+  if (args.activity_type !== 'strength') {
+    const { data: runs } = await supabase
+      .from('runs')
+      .select('id, scheduled_date, run_type, actual_distance, duration, average_heart_rate, actual_pace')
+      .eq('user_id', userId)
+      .eq('completed', true)
+      .order('scheduled_date', { ascending: false })
+      .limit(limit)
+
+    if (runs) activities.push(...runs.map((r: any) => ({ ...r, type: 'run' })))
+  }
+
+  if (args.activity_type !== 'run') {
+    const { data: sessions } = await supabase
+      .from('strength_sessions')
+      .select('id, scheduled_date, session_type, actual_duration, rpe, session_name')
+      .eq('user_id', userId)
+      .eq('completed', true)
+      .order('scheduled_date', { ascending: false })
+      .limit(limit)
+
+    if (sessions) activities.push(...sessions.map((s: any) => ({ ...s, type: 'strength' })))
+  }
+
+  // Sort combined results
+  return activities
+    .sort((a, b) => new Date(b.scheduled_date).getTime() - new Date(a.scheduled_date).getTime())
+    .slice(0, limit)
+}
+
+async function getNutritionLogs(supabase: any, userId: string, args: any) {
+  const { start_date, end_date } = args
+
+  const { data: meals } = await supabase
+    .from('meal_logs')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('log_date', start_date)
+    .lte('log_date', end_date)
+    .order('log_date', { ascending: false })
+
+  return {
+    logs: meals,
+    count: meals?.length || 0,
+    summary: {
+      total_calories: meals?.reduce((acc: number, m: any) => acc + (m.total_calories || 0), 0)
+    }
+  }
+}
 
 /**
  * Stores conversation and messages in the database
@@ -325,4 +510,5 @@ async function extractAndStoreMemories(
     }
   }
 }
+
 

@@ -3,7 +3,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
-import { allTrainingTools } from '../_shared/training-plan-tools.ts'
+import { allTrainingTools, allReadTools } from '../_shared/training-plan-tools.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -250,7 +250,7 @@ You have access to powerful tools that can modify the user's training plan! When
         ],
         temperature: 0.8,
         max_tokens: 4000,
-        tools: enableTools ? allTrainingTools : undefined,
+        tools: enableTools ? [...allTrainingTools, ...allReadTools] : undefined,
         tool_choice: enableTools ? 'auto' : undefined,
       }),
     })
@@ -575,6 +575,75 @@ You have access to powerful tools that can modify the user's training plan! When
             })
             continue
           }
+          else if (functionName === 'extend_nutrition_plan') {
+            // Call generate-nutrition-plan edge function
+            const daysToAdd = functionArgs.days_to_add || 3
+            const focus = functionArgs.focus
+
+            const extendResponse = await fetch(`${supabaseUrl}/functions/v1/generate-nutrition-plan`, {
+              method: 'POST',
+              headers: {
+                'Authorization': authHeader,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                days: daysToAdd,
+                focus: focus,
+                extendCurrent: true
+              }),
+            })
+
+            let result
+            if (extendResponse.ok) {
+              result = await extendResponse.json()
+            } else {
+              result = { error: 'Failed to extend nutrition plan' }
+            }
+
+            functionResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify(result),
+            })
+            continue
+          }
+          // Read Tools Handlers
+          else if (functionName === 'get_running_metrics') {
+            const result = await getRunningMetrics(supabase, user.id, functionArgs)
+            functionResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify(result)
+            })
+            continue
+          }
+          else if (functionName === 'get_strength_pbs') {
+            const result = await getStrengthPBs(supabase, user.id, functionArgs)
+            functionResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify(result)
+            })
+            continue
+          }
+          else if (functionName === 'get_recent_activities') {
+            const result = await getRecentActivities(supabase, user.id, functionArgs)
+            functionResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify(result)
+            })
+            continue
+          }
+          else if (functionName === 'get_nutrition_logs') {
+            const result = await getNutritionLogs(supabase, user.id, functionArgs)
+            functionResults.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: JSON.stringify(result)
+            })
+            continue
+          }
           else if (functionName === 'analyze_nutrition_performance') {
             // Call the nutrition-performance-correlation edge function
             const correlationResponse = await fetch(`${supabaseUrl}/functions/v1/nutrition-performance-correlation`, {
@@ -787,4 +856,103 @@ You have access to powerful tools that can modify the user's training plan! When
     )
   }
 })
+// --- Helper Functions ---
+
+async function getRunningMetrics(supabase: any, userId: string, args: any) {
+  const { start_date, end_date, metric_type } = args
+
+  const { data: runs, error } = await supabase
+    .from('runs')
+    .select('actual_distance, duration, average_heart_rate, calories, actual_pace, scheduled_date')
+    .eq('user_id', userId)
+    .gte('scheduled_date', start_date)
+    .lte('scheduled_date', end_date)
+    .eq('completed', true)
+
+  if (error) return { error: error.message }
+
+  // Calculate aggregations
+  const totalDistance = runs.reduce((acc: number, r: any) => acc + (r.actual_distance || 0), 0)
+  const count = runs.length
+  const totalDuration = runs.reduce((acc: number, r: any) => acc + (r.duration || 0), 0) // minutes
+
+  return {
+    period: { start: start_date, end: end_date },
+    metrics: {
+      total_distance_km: parseFloat(totalDistance.toFixed(2)),
+      run_count: count,
+      total_duration_min: totalDuration,
+      avg_distance: count ? parseFloat((totalDistance / count).toFixed(2)) : 0,
+      details: metric_type === 'distance' ? runs.map((r: any) => ({ date: r.scheduled_date, distance: r.actual_distance })) : undefined
+    }
+  }
+}
+
+async function getStrengthPBs(supabase: any, userId: string, args: any) {
+  let query = supabase.from('strength_pbs').select('*').eq('user_id', userId).order('weight', { ascending: false })
+
+  if (args.exercise_names && args.exercise_names.length > 0) {
+    query = query.in('exercise_name', args.exercise_names)
+  } else {
+    query = query.limit(5)
+  }
+
+  const { data, error } = await query
+  if (error) return { error: error.message }
+  return data
+}
+
+async function getRecentActivities(supabase: any, userId: string, args: any) {
+  const limit = Math.min(args.limit || 5, 10)
+  const activities = []
+
+  if (args.activity_type !== 'strength') {
+    const { data: runs } = await supabase
+      .from('runs')
+      .select('id, scheduled_date, run_type, actual_distance, duration, average_heart_rate, actual_pace')
+      .eq('user_id', userId)
+      .eq('completed', true)
+      .order('scheduled_date', { ascending: false })
+      .limit(limit)
+
+    if (runs) activities.push(...runs.map((r: any) => ({ ...r, type: 'run' })))
+  }
+
+  if (args.activity_type !== 'run') {
+    const { data: sessions } = await supabase
+      .from('strength_sessions')
+      .select('id, scheduled_date, session_type, actual_duration, rpe, session_name')
+      .eq('user_id', userId)
+      .eq('completed', true)
+      .order('scheduled_date', { ascending: false })
+      .limit(limit)
+
+    if (sessions) activities.push(...sessions.map((s: any) => ({ ...s, type: 'strength' })))
+  }
+
+  // Sort combined results
+  return activities
+    .sort((a, b) => new Date(b.scheduled_date).getTime() - new Date(a.scheduled_date).getTime())
+    .slice(0, limit)
+}
+
+async function getNutritionLogs(supabase: any, userId: string, args: any) {
+  const { start_date, end_date } = args
+
+  const { data: meals } = await supabase
+    .from('meal_logs')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('log_date', start_date)
+    .lte('log_date', end_date)
+    .order('log_date', { ascending: false })
+
+  return {
+    logs: meals,
+    count: meals?.length || 0,
+    summary: {
+      total_calories: meals?.reduce((acc: number, m: any) => acc + (m.total_calories || 0), 0)
+    }
+  }
+}
 

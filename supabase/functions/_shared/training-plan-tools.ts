@@ -685,6 +685,113 @@ export const nutritionTools = [
       },
     },
   },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'extend_nutrition_plan',
+      description: 'Generate additional days for the nutrition plan.',
+      parameters: {
+        type: 'object',
+        properties: {
+          days_to_add: { type: 'number' },
+          focus: { type: 'string', enum: ['balanced', 'high_carb', 'high_protein', 'weight_loss'] },
+        },
+        required: ['days_to_add'],
+      },
+    },
+  },
 ]
 
 export const allTrainingTools = [...trainingPlanTools, ...strengthTrainingTools, ...nutritionTools]
+
+// Read Tools - For querying data
+export const readTools = [
+  {
+    type: 'function' as const,
+    function: {
+      name: 'get_running_metrics',
+      description: 'Get running metrics (distance, avg pace, etc.) for a specific time range.',
+      parameters: {
+        type: 'object',
+        properties: {
+          start_date: {
+            type: 'string',
+            description: 'Start date in YYYY-MM-DD format',
+          },
+          end_date: {
+            type: 'string',
+            description: 'End date in YYYY-MM-DD format',
+          },
+          metric_type: {
+            type: 'string',
+            enum: ['distance', 'pace', 'count', 'duration'],
+            description: 'Specific metric to retrieve (optional, returns all if not specified)',
+          },
+        },
+        required: ['start_date', 'end_date'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'get_strength_pbs',
+      description: 'Get personal bests (PBs/PRs) for specific exercises.',
+      parameters: {
+        type: 'object',
+        properties: {
+          exercise_names: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'List of exercise names to get PBs for (limit 5). If empty, returns top 5 overall.',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'get_recent_activities',
+      description: 'Get detailed list of recent activities (runs or strength) with full stats.',
+      parameters: {
+        type: 'object',
+        properties: {
+          activity_type: {
+            type: 'string',
+            enum: ['run', 'strength', 'all'],
+            description: 'Type of activity to fetch',
+          },
+          limit: {
+            type: 'number',
+            description: 'Number of activities to return (default 5, max 10)',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'get_nutrition_logs',
+      description: 'Get historical nutrition logs for a date range.',
+      parameters: {
+        type: 'object',
+        properties: {
+          start_date: {
+            type: 'string',
+            description: 'Start date in YYYY-MM-DD format',
+          },
+          end_date: {
+            type: 'string',
+            description: 'End date in YYYY-MM-DD format',
+          },
+        },
+        required: ['start_date', 'end_date'],
+      },
+    },
+  },
+]
+
+export const allReadTools = readTools
+
